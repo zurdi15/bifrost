@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { computed, onScopeDispose, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { mdiBellOutline, mdiCalendarClock, mdiHarddisk, mdiViewDashboardOutline } from '@mdi/js';
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
+import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useLiveStore } from '@/stores/live';
 import { formatClock } from '@/utils/format';
 
 const { t } = useI18n();
 const live = useLiveStore();
+
+const NAV = [
+  { to: '/', key: 'nav.dashboard', icon: mdiViewDashboardOutline, exact: true },
+  { to: '/storage', key: 'nav.storage', icon: mdiHarddisk, exact: false },
+  { to: '/jobs', key: 'nav.jobs', icon: mdiCalendarClock, exact: false },
+  { to: '/settings', key: 'nav.settings', icon: mdiBellOutline, exact: false },
+];
 
 const now = ref(Math.floor(Date.now() / 1000));
 const timer = setInterval(() => (now.value = Math.floor(Date.now() / 1000)), 1000);
@@ -26,17 +35,15 @@ const hubDown = computed(() => live.connection !== 'live');
     <header class="topbar">
       <RouterLink to="/" class="wordmark">⌁ bifrost</RouterLink>
       <nav class="nav">
-        <RouterLink to="/" class="nav-link" exact-active-class="active">
-          {{ t('nav.dashboard') }}
-        </RouterLink>
-        <RouterLink to="/storage" class="nav-link" active-class="active">
-          {{ t('nav.storage') }}
-        </RouterLink>
-        <RouterLink to="/jobs" class="nav-link" active-class="active">
-          {{ t('nav.jobs') }}
-        </RouterLink>
-        <RouterLink to="/settings" class="nav-link" active-class="active">
-          {{ t('nav.settings') }}
+        <RouterLink
+          v-for="item in NAV"
+          :key="item.to"
+          :to="item.to"
+          class="nav-link"
+          :exact-active-class="item.exact ? 'active' : ''"
+          :active-class="item.exact ? '' : 'active'"
+        >
+          {{ t(item.key) }}
         </RouterLink>
       </nav>
       <div class="right">
@@ -48,6 +55,21 @@ const hubDown = computed(() => live.connection !== 'live');
     <main class="content">
       <slot />
     </main>
+
+    <!-- Mobile: the topbar nav collapses into a floating glass dock. -->
+    <nav class="dock" :aria-label="t('nav.dashboard')">
+      <RouterLink
+        v-for="item in NAV"
+        :key="item.to"
+        :to="item.to"
+        class="dock-link"
+        :exact-active-class="item.exact ? 'active' : ''"
+        :active-class="item.exact ? '' : 'active'"
+      >
+        <BfIcon :path="item.icon" :size="19" />
+        <span class="dock-label">{{ t(item.key) }}</span>
+      </RouterLink>
+    </nav>
   </div>
 </template>
 
@@ -129,5 +151,63 @@ const hubDown = computed(() => live.connection !== 'live');
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+/* ── mobile: floating glass dock ─────────────────────────────────────────── */
+.dock {
+  display: none;
+}
+@media (max-width: 720px) {
+  .topbar {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .nav {
+    display: none;
+  }
+  .content {
+    padding: 0.5rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
+  }
+  .dock {
+    position: fixed;
+    bottom: calc(0.8rem + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 0.15rem;
+    padding: 0.3rem;
+    border: 1px solid var(--bf-line);
+    border-radius: var(--bf-radius-pill);
+    background: color-mix(in srgb, var(--bf-surface) 72%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    box-shadow: var(--bf-shadow-lift);
+  }
+  .dock-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12rem;
+    min-width: 4rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--bf-radius-pill);
+    text-decoration: none;
+    color: var(--bf-ink-muted);
+    transition:
+      color var(--bf-dur-150),
+      background-color var(--bf-dur-150);
+  }
+  .dock-link.active {
+    color: var(--bf-brand);
+    background: var(--bf-brand-tint);
+  }
+  .dock-label {
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
 }
 </style>
