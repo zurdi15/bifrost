@@ -61,6 +61,8 @@ export interface BookmarkInfo {
   icon: string | null;
   group: string | null;
   position: number;
+  /** 'file' rows come from bookmarks.yml and are read-only in the UI. */
+  source: 'ui' | 'file';
 }
 
 export interface Snapshot {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue';
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { mdiPencil } from '@mdi/js';
 
@@ -8,9 +8,11 @@ import type { BookmarkInfo } from '@/api/types';
 import BfButton from '@/lib/primitives/BfButton.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useIconStore } from '@/stores/icons';
+import { useLiveStore } from '@/stores/live';
 
 const { t } = useI18n();
 const icons = useIconStore();
+const live = useLiveStore();
 
 const bookmarks = ref<BookmarkInfo[]>([]);
 const loaded = ref(false);
@@ -20,13 +22,17 @@ const editing = ref<number | null>(null);
 const busy = ref(false);
 const form = reactive({ name: '', url: '', icon: '', group: '' });
 
-onMounted(async () => {
+async function refresh(): Promise<void> {
   try {
     bookmarks.value = await api.bookmarks();
   } finally {
     loaded.value = true;
   }
-});
+}
+
+onMounted(refresh);
+// bookmarks.yml resynced on the hub → reload.
+watch(() => live.bookmarksVersion, () => void refresh());
 
 watchEffect(() => {
   for (const bookmark of bookmarks.value) {
@@ -169,7 +175,9 @@ async function remove(): Promise<void> {
             <template v-else>{{ iconOf(bookmark) }}</template>
           </span>
           <span class="name">{{ bookmark.name }}</span>
+          <!-- File-managed bookmarks are edited in bookmarks.yml, not here. -->
           <button
+            v-if="bookmark.source !== 'file'"
             class="edit"
             type="button"
             :aria-label="t('bookmarks.edit')"

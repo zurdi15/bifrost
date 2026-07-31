@@ -242,7 +242,8 @@ class EndpointCheck(Base):
 
 
 class Bookmark(Base):
-    """Plain dashboard links — no probing, no state, just name/url/icon."""
+    """Plain dashboard links — no probing, no state, just name/url/icon.
+    source='file' rows are owned by bookmarks.yml and read-only in the UI."""
 
     __tablename__ = "bookmarks"
 
@@ -252,6 +253,7 @@ class Bookmark(Base):
     icon: Mapped[str | None]
     group_name: Mapped[str | None]
     position: Mapped[int] = mapped_column(default=0)
+    source: Mapped[str] = mapped_column(default="ui")  # 'ui' | 'file'
     created_at: Mapped[int] = mapped_column(default=now_ts)
 
 

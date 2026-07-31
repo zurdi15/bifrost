@@ -12,6 +12,8 @@ services:
       BIFROST_AUTO_APPROVE: "false"
     volumes:
       - bifrost-data:/data
+      # Declarative bookmarks (see examples/bookmarks.yml):
+      #- ./bookmarks.yml:/data/bookmarks.yml:ro
 
 volumes:
   bifrost-data:

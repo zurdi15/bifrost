@@ -17,6 +17,8 @@ export const useLiveStore = defineStore('live', () => {
   const lastSeq = ref(0);
   // Bumped on any k8s.* event so views can refetch their REST data.
   const k8sVersion = ref(0);
+  // Bumped when bookmarks.yml resyncs on the hub.
+  const bookmarksVersion = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
   const metrics = useMetricsStore();
@@ -91,6 +93,8 @@ export const useLiveStore = defineStore('live', () => {
       k8sVersion.value += 1;
       // Inventory changed: refresh the k8s services on the dashboard.
       if (event.topic === 'k8s.synced') void snapshot();
+    } else if (event.topic === 'bookmarks.updated') {
+      bookmarksVersion.value += 1;
     } else if (event.topic === 'fs.updated') {
       fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
@@ -144,6 +148,7 @@ export const useLiveStore = defineStore('live', () => {
     downNodes,
     lastSeq,
     k8sVersion,
+    bookmarksVersion,
     connect,
     disconnect,
     applyEvent,

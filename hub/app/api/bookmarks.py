@@ -18,7 +18,16 @@ def _to_dict(bookmark: Bookmark) -> dict:
         "icon": bookmark.icon,
         "group": bookmark.group_name,
         "position": bookmark.position,
+        "source": bookmark.source,
     }
+
+
+def _editable(bookmark: Bookmark | None) -> Bookmark:
+    if bookmark is None:
+        raise HTTPException(404)
+    if bookmark.source == "file":
+        raise HTTPException(409, detail="managed by bookmarks.yml — edit the file")
+    return bookmark
 
 
 @router.get("/bookmarks")
@@ -67,9 +76,7 @@ def create_bookmark(
 def patch_bookmark(
     bookmark_id: int, body: BookmarkPatch, session: Session = Depends(get_session)
 ) -> dict:
-    bookmark = session.get(Bookmark, bookmark_id)
-    if bookmark is None:
-        raise HTTPException(404)
+    bookmark = _editable(session.get(Bookmark, bookmark_id))
     if body.name is not None:
         bookmark.name = body.name.strip()
     if body.url is not None:
@@ -86,7 +93,4 @@ def patch_bookmark(
 
 @router.delete("/bookmarks/{bookmark_id}", status_code=204)
 def delete_bookmark(bookmark_id: int, session: Session = Depends(get_session)) -> None:
-    bookmark = session.get(Bookmark, bookmark_id)
-    if bookmark is None:
-        raise HTTPException(404)
-    session.delete(bookmark)
+    session.delete(_editable(session.get(Bookmark, bookmark_id)))

@@ -19,6 +19,7 @@ from app.api import icons as icons_api
 from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
 from app.api import widgets as widgets_api
+from app.bookmarks_file import bookmarks_file_watcher
 from app.bus import EventBus
 from app.checks.runner import checks_runner
 from app.config import settings
@@ -71,6 +72,9 @@ def create_app() -> FastAPI:
             asyncio.create_task(agent_ws.heartbeat_monitor(app.state), name="heartbeat-monitor"),
             asyncio.create_task(checks_runner(app.state), name="checks-runner"),
             asyncio.create_task(alerts_engine(app.state.bus), name="alerts-engine"),
+            asyncio.create_task(
+                bookmarks_file_watcher(app.state.bus), name="bookmarks-file"
+            ),
         ]
         logger.info("bifrost hub up — data dir %s", settings.data_dir)
         try:

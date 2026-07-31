@@ -1,0 +1,25 @@
+# Declarative bookmarks for the Bifrost dashboard.
+# Mount this file at /data/bookmarks.yml (or point BIFROST_BOOKMARKS_FILE at
+# it) and the hub keeps the Bookmarks section in sync — on start and whenever
+# the file changes. Entries here are read-only in the UI; bookmarks added
+# from the UI live alongside them untouched.
+#
+# icon is optional: an emoji or an image URL. Without it, Bifrost resolves
+# one automatically from the name (selfh.st icon index).
+
+- group: media
+  items:
+    - name: RomM
+      url: https://romm.example.net
+    - name: Jellyfin
+      url: https://jellyfin.example.net
+
+- group: infra
+  items:
+    - name: Proxmox
+      url: https://pve.example.net:8006
+      icon: "🖥️"
+
+# Flat entries (no group) are fine too:
+- name: Router
+  url: http://192.168.1.1
