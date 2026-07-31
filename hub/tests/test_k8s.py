@@ -1,16 +1,32 @@
 import asyncio
 import base64
 import json
+import ssl
 import time
 
 from app.k8s import mapper
-from app.k8s.client import parse_kubeconfig, rewrite_localhost
+from app.k8s.client import build_ssl_context, parse_kubeconfig, rewrite_localhost
 from tests.conftest import agent_headers, hello_frame
 from tests.test_containers import wait_for
 
 
 def b64(value: str) -> str:
     return base64.b64encode(value.encode()).decode()
+
+
+# Any syntactically valid CA cert works; build_ssl_context only loads it.
+TEST_CA_PEM = """-----BEGIN CERTIFICATE-----
+MIIBizCCATGgAwIBAgIUfq1dJUnH1vWlMnVtHJdUwCcx34AwCgYIKoZIzj0EAwIw
+GjEYMBYGA1UEAwwPYmlmcm9zdC10ZXN0LWNhMCAXDTI2MDczMTIwMDYzOFoYDzIx
+MjYwNzA3MjAwNjM4WjAaMRgwFgYDVQQDDA9iaWZyb3N0LXRlc3QtY2EwWTATBgcq
+hkjOPQIBBggqhkjOPQMBBwNCAATgebwa8DinMX50dgJTDZK2As1w1saPVO2bNLpg
+yIfJDZH62TFXAEW4ztfKh+6lG7/gKYih8AfR0ByRAv60mjtho1MwUTAdBgNVHQ4E
+FgQUJ4uguYbdx3vdVNa263wwSv9jllMwHwYDVR0jBBgwFoAUJ4uguYbdx3vdVNa2
+63wwSv9jllMwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBFAiBgvdaJ
+ITnJ35BZ9gK+iiHXpto3Y5P8x7BQeO5Z5YEzPwIhAOHxOPsepJFMLiuTvj/VqFet
+ooJBYi817O+Z/BqtGhPF
+-----END CERTIFICATE-----
+"""
 
 
 KUBECONFIG = f"""apiVersion: v1
@@ -39,6 +55,21 @@ def test_parse_kubeconfig_and_rewrite():
         == "https://100.64.0.7:6443"
     )
     assert rewrite_localhost("https://mimir:6443", "100.64.0.7") == "https://mimir:6443"
+
+
+def test_pinned_ca_skips_hostname_check():
+    """Regression: a discovered cluster is reached at the address the agent
+    connected from (e.g. a Tailscale IP), which is never in the apiserver
+    cert's SANs. With the cluster CA pinned, chain verification must stay on
+    but hostname matching must be off — otherwise every discovered cluster
+    fails with CERTIFICATE_VERIFY_FAILED: IP address mismatch."""
+    context = build_ssl_context(TEST_CA_PEM)
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_REQUIRED
+
+    # Without a pinned CA (public/system trust) hostname checking stays on.
+    context = build_ssl_context(None)
+    assert context.check_hostname is True
 
 
 def test_mapper_deployment_and_job():

@@ -18,6 +18,33 @@ class K8sAuthError(Exception):
     pass
 
 
+def build_ssl_context(
+    ca_pem: str | None,
+    client_cert_pem: str | None = None,
+    client_key_pem: str | None = None,
+    cert_dir: Path | None = None,
+) -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    if ca_pem:
+        # The CA is the cluster's own private CA (pinned from its kubeconfig),
+        # so chain verification alone already identifies the cluster. Hostname
+        # checking must be off: discovered clusters are reached through a
+        # rewritten address (the one the agent connected from — e.g. a
+        # Tailscale IP) that is never in the apiserver cert's SANs.
+        context.check_hostname = False
+        context.load_verify_locations(cadata=ca_pem)
+    if client_cert_pem and client_key_pem:
+        cert_dir = cert_dir or Path(tempfile.mkdtemp(prefix="bifrost-k8s-"))
+        cert_dir.mkdir(parents=True, exist_ok=True)
+        cert_file = cert_dir / "client.pem"
+        key_file = cert_dir / "client-key.pem"
+        cert_file.write_text(client_cert_pem)
+        key_file.write_text(client_key_pem)
+        key_file.chmod(0o600)
+        context.load_cert_chain(str(cert_file), str(key_file))
+    return context
+
+
 def parse_kubeconfig(content: str) -> dict:
     """Extract server/CA/credentials from the first context of a kubeconfig."""
     try:
@@ -71,21 +98,7 @@ class K8sClient:
         if insecure:
             verify = False
         elif ca_pem or client_cert_pem:
-            context = ssl.create_default_context()
-            if insecure:
-                context.check_hostname = False
-            if ca_pem:
-                context.load_verify_locations(cadata=ca_pem)
-            if client_cert_pem and client_key_pem:
-                cert_dir = cert_dir or Path(tempfile.mkdtemp(prefix="bifrost-k8s-"))
-                cert_dir.mkdir(parents=True, exist_ok=True)
-                cert_file = cert_dir / "client.pem"
-                key_file = cert_dir / "client-key.pem"
-                cert_file.write_text(client_cert_pem)
-                key_file.write_text(client_key_pem)
-                key_file.chmod(0o600)
-                context.load_cert_chain(str(cert_file), str(key_file))
-            verify = context
+            verify = build_ssl_context(ca_pem, client_cert_pem, client_key_pem, cert_dir)
         else:
             verify = True
 
