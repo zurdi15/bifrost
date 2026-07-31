@@ -67,7 +67,8 @@
     "empty": "No disks reported yet — the agent needs smartctl device access (see docs/agent.md).",
     "prefail": "pre-fail",
     "powerOn": "power on",
-    "wear": "wear"
+    "wear": "wear",
+    "noSmart": "no SMART data — the agent needs smartctl device access (see docs/agent.md)"
   },
   "jobs": {
     "title": "Jobs",

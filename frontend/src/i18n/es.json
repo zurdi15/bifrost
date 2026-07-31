@@ -67,7 +67,8 @@
     "empty": "Ningún disco reportado todavía — el agente necesita acceso a dispositivos para smartctl (ver docs/agent.md).",
     "prefail": "pre-fail",
     "powerOn": "encendido",
-    "wear": "desgaste"
+    "wear": "desgaste",
+    "noSmart": "sin datos SMART — el agente necesita acceso a los discos vía smartctl (ver docs/agent.md)"
   },
   "jobs": {
     "title": "Jobs",

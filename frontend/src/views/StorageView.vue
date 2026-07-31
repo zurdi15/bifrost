@@ -12,8 +12,12 @@ import { formatBytes } from '@/utils/format';
 const { t } = useI18n();
 const live = useLiveStore();
 
-const nodesWithDisks = computed(() =>
-  live.nodeList.filter((n) => (live.disks.get(n.uuid) ?? []).length > 0),
+// Every agent node belongs here: SMART disks when reported, filesystems
+// always. Filtering by disks alone made SD-card/no-SMART nodes vanish.
+const nodesWithStorage = computed(() =>
+  live.nodeList.filter(
+    (n) => n.kind === 'agent' || (live.disks.get(n.uuid) ?? []).length > 0,
+  ),
 );
 const totalDisks = computed(
   () => [...live.disks.values()].reduce((acc, list) => acc + list.length, 0),
@@ -49,16 +53,19 @@ function smartLabel(disk: DiskInfo): string {
       <BfChip mono>{{ t('storage.count', { ok: healthyDisks, total: totalDisks }) }}</BfChip>
     </header>
 
-    <p v-if="nodesWithDisks.length === 0" class="empty">{{ t('storage.empty') }}</p>
+    <p v-if="nodesWithStorage.length === 0" class="empty">{{ t('storage.empty') }}</p>
 
     <div class="nodes bf-stagger">
       <BfCard
-        v-for="(node, i) in nodesWithDisks"
+        v-for="(node, i) in nodesWithStorage"
         :key="node.uuid"
         class="node-block"
         :style="{ '--i': i }"
       >
         <h3 class="node-name">{{ node.name }}</h3>
+        <p v-if="(live.disks.get(node.uuid) ?? []).length === 0" class="no-smart">
+          {{ t('storage.noSmart') }}
+        </p>
         <details v-for="disk in live.disks.get(node.uuid)" :key="disk.serial" class="disk">
           <summary class="disk-row">
             <span class="device bf-metric">{{ disk.device }}</span>
@@ -116,6 +123,11 @@ function smartLabel(disk: DiskInfo): string {
   color: var(--bf-ink-muted);
   padding: 2.5rem 0;
   text-align: center;
+}
+.no-smart {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--bf-ink-faint);
 }
 .nodes {
   display: flex;
