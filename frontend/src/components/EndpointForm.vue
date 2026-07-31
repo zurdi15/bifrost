@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import BfButton from '@/lib/primitives/BfButton.vue';
@@ -14,6 +14,21 @@ const kind = ref<'http' | 'ping' | 'tcp'>('http');
 const target = ref('');
 const busy = ref(false);
 const error = ref('');
+const nameField = ref<HTMLInputElement | null>(null);
+
+async function toggle(): Promise<void> {
+  open.value = !open.value;
+  error.value = '';
+  if (open.value) {
+    await nextTick();
+    nameField.value?.focus();
+  }
+}
+
+function close(): void {
+  open.value = false;
+  error.value = '';
+}
 
 async function submit(): Promise<void> {
   if (!name.value.trim() || !target.value.trim()) return;
@@ -43,10 +58,14 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="endpoint-form">
-    <BfButton size="sm" @click="open = !open">+ {{ t('endpoint.add') }}</BfButton>
+    <!-- The trigger flips into an explicit cancel while the form is open. -->
+    <BfButton size="sm" :variant="open ? 'ghost' : undefined" @click="toggle">
+      {{ open ? `✕ ${t('endpoint.cancel')}` : `+ ${t('endpoint.add')}` }}
+    </BfButton>
 
-    <form v-if="open" class="form bf-rise-in" @submit.prevent="submit">
+    <form v-if="open" class="form bf-rise-in" @submit.prevent="submit" @keydown.esc="close">
       <input
+        ref="nameField"
         v-model="name"
         class="field"
         :placeholder="t('endpoint.name')"

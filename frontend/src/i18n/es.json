@@ -80,6 +80,7 @@
     "add": "endpoint",
     "name": "nombre (ej. haos)",
     "save": "añadir",
+    "cancel": "cancelar",
     "error": "no se pudo crear el endpoint"
   },
   "widgets": {
