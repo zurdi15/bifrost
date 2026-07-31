@@ -1,4 +1,12 @@
-import type { ContainerInfo, FsMount, MetricsResponse, NodeInfo, Resolution, Snapshot } from './types';
+import type {
+  BookmarkInfo,
+  ContainerInfo,
+  FsMount,
+  MetricsResponse,
+  NodeInfo,
+  Resolution,
+  Snapshot,
+} from './types';
 
 const BASE = '/api/v1';
 
@@ -26,6 +34,14 @@ export const api = {
     return request<MetricsResponse>(`/metrics?${params}`);
   },
   nodeFs: (uuid: string) => request<FsMount[]>(`/nodes/${uuid}/fs`),
+  bookmarks: () => request<BookmarkInfo[]>('/bookmarks'),
+  createBookmark: (body: { name: string; url: string; icon?: string; group?: string }) =>
+    request<BookmarkInfo>('/bookmarks', { method: 'POST', body: JSON.stringify(body) }),
+  patchBookmark: (
+    id: number,
+    body: { name?: string; url?: string; icon?: string; group?: string; position?: number },
+  ) => request<BookmarkInfo>(`/bookmarks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteBookmark: (id: number) => request<void>(`/bookmarks/${id}`, { method: 'DELETE' }),
   resolveIcons: (names: string[]) =>
     request<Record<string, string | null>>(`/icons?names=${encodeURIComponent(names.join(','))}`),
   putServiceMeta: (
