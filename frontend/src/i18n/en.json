@@ -1,0 +1,37 @@
+{
+  "nodes": {
+    "title": "Nodes",
+    "up": "{up}/{total} up",
+    "down": "{count} DOWN",
+    "empty": "No nodes yet — deploy an agent and it will appear here.",
+    "lastSeen": "last seen",
+    "uptime": "uptime"
+  },
+  "status": {
+    "online": "online",
+    "offline": "DOWN",
+    "degraded": "degraded",
+    "pending": "pending",
+    "new": "new",
+    "disabled": "disabled"
+  },
+  "metric": {
+    "cpu": "cpu",
+    "mem": "mem",
+    "temp": "temp",
+    "load": "load",
+    "net": "network",
+    "rx": "rx",
+    "tx": "tx"
+  },
+  "connection": {
+    "live": "live",
+    "connecting": "connecting",
+    "reconnecting": "hub unreachable · retrying in {seconds}s",
+    "offline": "offline"
+  },
+  "detail": {
+    "back": "nodes",
+    "notFound": "Node not found."
+  }
+}

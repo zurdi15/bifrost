@@ -1,0 +1,37 @@
+{
+  "nodes": {
+    "title": "Nodos",
+    "up": "{up}/{total} activos",
+    "down": "{count} CAÍDOS",
+    "empty": "Sin nodos todavía — despliega un agente y aparecerá aquí.",
+    "lastSeen": "visto por última vez",
+    "uptime": "uptime"
+  },
+  "status": {
+    "online": "activo",
+    "offline": "CAÍDO",
+    "degraded": "degradado",
+    "pending": "pendiente",
+    "new": "nuevo",
+    "disabled": "desactivado"
+  },
+  "metric": {
+    "cpu": "cpu",
+    "mem": "mem",
+    "temp": "temp",
+    "load": "carga",
+    "net": "red",
+    "rx": "rx",
+    "tx": "tx"
+  },
+  "connection": {
+    "live": "en vivo",
+    "connecting": "conectando",
+    "reconnecting": "hub inaccesible · reintento en {seconds}s",
+    "offline": "desconectado"
+  },
+  "detail": {
+    "back": "nodos",
+    "notFound": "Nodo no encontrado."
+  }
+}
