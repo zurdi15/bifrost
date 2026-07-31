@@ -44,7 +44,14 @@ def create_app() -> FastAPI:
 
         app.state.bus = EventBus()
         app.state.agent_registry = AgentRegistry()
-        app.state.metrics = MetricsStore(settings.metrics_db_path)
+        app.state.metrics = MetricsStore(
+            settings.metrics_db_path,
+            retention={
+                "raw": settings.retention_raw_h * 3600,
+                "1m": settings.retention_1m_d * 86400,
+                "1h": settings.retention_1h_d * 86400,
+            },
+        )
         await app.state.metrics.start()
 
         tasks = [

@@ -19,6 +19,7 @@ METRICS_THROTTLE_S = 5.0
 TOPIC_CATEGORY = {
     "metrics.live": "metrics",
     "node.status": "nodes",
+    "fs.updated": "nodes",
     "containers.updated": "containers",
     "container.event": "containers",
 }

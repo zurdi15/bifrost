@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router';
 
 import { api } from '@/api/client';
 import { mdiArrowLeft } from '@mdi/js';
+import NodeFilesystems from '@/components/NodeFilesystems.vue';
+import NodeHistory from '@/components/NodeHistory.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
@@ -180,6 +182,9 @@ onMounted(async () => {
         </div>
       </BfCard>
     </div>
+
+    <NodeFilesystems :uuid="node.uuid" />
+    <NodeHistory :uuid="node.uuid" :interfaces="interfaces" />
   </section>
 
   <p v-else class="missing">{{ t('detail.notFound') }}</p>

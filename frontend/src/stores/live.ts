@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref, shallowRef } from 'vue';
 
 import { api } from '@/api/client';
-import type { ConnectionState, ContainerInfo, NodeInfo, WsEvent } from '@/api/types';
+import type { ConnectionState, ContainerInfo, FsMount, NodeInfo, WsEvent } from '@/api/types';
 import { UiSocket } from '@/api/ws';
 import { useMetricsStore } from '@/stores/metrics';
 
@@ -11,6 +11,7 @@ export const useLiveStore = defineStore('live', () => {
   const retryAt = ref<number | null>(null);
   const nodes = reactive(new Map<string, NodeInfo>());
   const containers = reactive(new Map<string, ContainerInfo[]>());
+  const fs = reactive(new Map<string, FsMount[]>());
   const lastSeq = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
@@ -70,6 +71,8 @@ export const useLiveStore = defineStore('live', () => {
       }
     } else if (event.topic === 'containers.updated') {
       containers.set(event.data.uuid as string, event.data.containers as ContainerInfo[]);
+    } else if (event.topic === 'fs.updated') {
+      fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
       const uuid = event.data.uuid as string;
       const samples = event.data.samples as Record<string, number>;
@@ -111,6 +114,7 @@ export const useLiveStore = defineStore('live', () => {
     retryAt,
     nodes,
     containers,
+    fs,
     nodeList,
     containerList,
     upCount,

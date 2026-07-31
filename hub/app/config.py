@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # Heartbeat cadence agents must honor; misses drive degraded/offline states.
     heartbeat_interval_s: int = 15
 
+    # Metric history retention per resolution.
+    retention_raw_h: int = 24
+    retention_1m_d: int = 14
+    retention_1h_d: int = 730
+
     # Path to the built SPA; served when present.
     frontend_dist: Path = Path(__file__).resolve().parent.parent / "static"
 

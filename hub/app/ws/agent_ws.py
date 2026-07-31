@@ -191,6 +191,20 @@ async def agent_ws(ws: WebSocket) -> None:
                     "metrics.live",
                     {"uuid": node_uuid, "ts": ts, "samples": dict(samples)},
                 )
+            elif isinstance(msg, proto.Fs):
+                with session_scope() as session:
+                    serialized_mounts = handlers.apply_fs(session, node_id, msg.mounts)
+                conn.last_seq = msg.seq
+                # Feed usage into history so capacity trends are queryable.
+                ts = _effective_ts(msg.ts)
+                fs_samples = [
+                    (f"fs.{m['mountpoint']}.used_pct", m["used_pct"])
+                    for m in serialized_mounts
+                    if m["used_pct"] is not None and not m["stale"]
+                ]
+                if fs_samples:
+                    metrics.enqueue(node_id, ts, fs_samples)
+                bus.publish("fs.updated", {"uuid": node_uuid, "mounts": serialized_mounts})
             elif isinstance(msg, proto.ContainersFull):
                 with session_scope() as session:
                     handlers.apply_containers_full(session, node_id, msg.containers)

@@ -53,11 +53,12 @@ export const useMetricsStore = defineStore('metrics', () => {
     }
   }
 
-  /** Seed a ring from a REST history query (node detail view). */
-  function seed(nodeUuid: string, metric: string, points: [number, number][]): void {
+  /** Seed a ring from a REST history query (node detail view).
+   * Rows are [ts, value] (raw) or [ts, avg, min, max] (aggregated). */
+  function seed(nodeUuid: string, metric: string, points: number[][]): void {
     const k = key(nodeUuid, metric);
     const ring = new Ring();
-    for (const [, value] of points.slice(-RING_CAPACITY)) ring.push(value);
+    for (const row of points.slice(-RING_CAPACITY)) ring.push(row[1]);
     rings.set(k, ring);
     versions.set(k, (versions.get(k) ?? 0) + 1);
   }

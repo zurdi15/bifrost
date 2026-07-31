@@ -90,6 +90,18 @@ def patch_node(
     return node_to_dict(node, registry)
 
 
+@router.get("/nodes/{uuid}/fs")
+def node_fs(uuid: str, session: Session = Depends(get_session)) -> list[dict]:
+    from app.ingest.handlers import serialize_mount
+    from app.models import FsMount
+
+    node = _get_node(session, uuid)
+    mounts = session.scalars(
+        select(FsMount).where(FsMount.node_id == node.id).order_by(FsMount.mountpoint)
+    ).all()
+    return [serialize_mount(m) for m in mounts]
+
+
 @router.delete("/nodes/{uuid}", status_code=204)
 def delete_node(uuid: str, session: Session = Depends(get_session)) -> None:
     session.delete(_get_node(session, uuid))

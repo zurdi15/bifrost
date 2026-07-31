@@ -17,6 +17,7 @@ async def query_metrics(
     m: str = Query(description="comma-separated metric names"),
     from_ts: int | None = Query(default=None, alias="from"),
     to_ts: int | None = Query(default=None, alias="to"),
+    res: str = Query(default="auto", pattern="^(auto|raw|1m|1h)$"),
 ) -> dict:
     store: MetricsStore = request.app.state.metrics
     with session_scope() as session:
@@ -31,11 +32,13 @@ async def query_metrics(
     if not names:
         raise HTTPException(status_code=422, detail="no metric names given")
 
-    series = await asyncio.to_thread(store.query_sync, node_id, names, from_ts, to_ts)
+    used_res, series = await asyncio.to_thread(
+        store.query_sync, node_id, names, from_ts, to_ts, res
+    )
     return {
         "node": node,
         "from": from_ts,
         "to": to_ts,
-        "res": "raw",
-        "series": {name: [[ts, value] for ts, value in points] for name, points in series.items()},
+        "res": used_res,  # raw rows: [ts, value] · aggregated: [ts, avg, min, max]
+        "series": series,
     }

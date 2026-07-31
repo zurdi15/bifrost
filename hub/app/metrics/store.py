@@ -17,12 +17,12 @@ import sqlite3
 import time
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 FLUSH_INTERVAL_S = 5.0
 FLUSH_MAX_ROWS = 500
 
-_SCHEMA = """
+_SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS metric_defs (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL UNIQUE
@@ -50,18 +50,42 @@ CREATE TABLE IF NOT EXISTS samples_1h (
 ) WITHOUT ROWID;
 """
 
+# Downsampler bookkeeping (watermarks of last aggregated bucket).
+_SCHEMA_V2 = """
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value INTEGER NOT NULL
+);
+"""
+
+_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2}
+
 Row = tuple[int, int, int, float]  # node_id, metric_id, ts, value
+
+# Buckets are aggregated once they are safely in the past (late frames from
+# ring resends may still land inside the lag window).
+DOWNSAMPLE_LAG_S = 120
+MAINTENANCE_INTERVAL_S = 60.0
+RETENTION_INTERVAL_S = 3600
+
+DEFAULT_RETENTION = {
+    "raw": 24 * 3600,
+    "1m": 14 * 86400,
+    "1h": 730 * 86400,
+}
 
 
 class MetricsStore:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, retention: dict[str, int] | None = None) -> None:
         self._path = path
+        self._retention = {**DEFAULT_RETENTION, **(retention or {})}
         self._conn: sqlite3.Connection | None = None
         self._queue: asyncio.Queue[tuple[int, int, list[tuple[str, float]]]] = asyncio.Queue(
             maxsize=10_000
         )
         self._names: dict[str, int] = {}
         self._writer: asyncio.Task | None = None
+        self._maintenance: asyncio.Task | None = None
         self._flush_event = asyncio.Event()
         self._flush_done = asyncio.Event()
 
@@ -70,12 +94,16 @@ class MetricsStore:
     async def start(self) -> None:
         await asyncio.to_thread(self._open_sync)
         self._writer = asyncio.create_task(self._writer_loop(), name="metrics-writer")
+        self._maintenance = asyncio.create_task(
+            self._maintenance_loop(), name="metrics-maintenance"
+        )
 
     async def stop(self) -> None:
-        if self._writer:
-            self._writer.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._writer
+        for task in (self._writer, self._maintenance):
+            if task:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         await asyncio.to_thread(self._drain_and_close_sync)
 
     def _open_sync(self) -> None:
@@ -85,9 +113,10 @@ class MetricsStore:
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=5000")
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version < SCHEMA_VERSION:
-            conn.executescript(_SCHEMA)
-            conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        while version < SCHEMA_VERSION:
+            version += 1
+            conn.executescript(_MIGRATIONS[version])
+            conn.execute(f"PRAGMA user_version={version}")
             conn.commit()
         self._names = dict(conn.execute("SELECT name, id FROM metric_defs").fetchall())
         self._conn = conn
@@ -171,27 +200,129 @@ class MetricsStore:
                 rows,
             )
 
+    # ── downsampling & retention ─────────────────────────────────────────────
+
+    def _meta_get_sync(self, key: str, default: int = 0) -> int:
+        assert self._conn is not None
+        row = self._conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def _meta_set_sync(self, key: str, value: int) -> None:
+        assert self._conn is not None
+        self._conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)", (key, value))
+
+    def downsample_once_sync(self, now: int | None = None) -> None:
+        """Aggregate completed buckets: raw → 1m, then 1m → 1h. Idempotent
+        (INSERT OR REPLACE + watermarks in meta)."""
+        assert self._conn is not None
+        now = now or int(time.time())
+        with self._conn:
+            cutoff_1m = (now - DOWNSAMPLE_LAG_S) // 60 * 60
+            start_1m = self._meta_get_sync("agg_1m_upto")
+            if cutoff_1m > start_1m:
+                self._conn.execute(
+                    """
+                    INSERT OR REPLACE INTO samples_1m
+                    SELECT node_id, metric_id, (ts/60)*60,
+                           avg(value), min(value), max(value), count(*)
+                    FROM samples_raw WHERE ts >= ? AND ts < ?
+                    GROUP BY node_id, metric_id, ts/60
+                    """,
+                    (start_1m, cutoff_1m),
+                )
+                self._meta_set_sync("agg_1m_upto", cutoff_1m)
+
+            cutoff_1h = (now - DOWNSAMPLE_LAG_S) // 3600 * 3600
+            start_1h = self._meta_get_sync("agg_1h_upto")
+            if cutoff_1h > start_1h:
+                self._conn.execute(
+                    """
+                    INSERT OR REPLACE INTO samples_1h
+                    SELECT node_id, metric_id, (ts/3600)*3600,
+                           sum(avg*n)/sum(n), min(min), max(max), sum(n)
+                    FROM samples_1m WHERE ts >= ? AND ts < ?
+                    GROUP BY node_id, metric_id, ts/3600
+                    """,
+                    (start_1h, cutoff_1h),
+                )
+                self._meta_set_sync("agg_1h_upto", cutoff_1h)
+
+    def apply_retention_sync(self, now: int | None = None) -> None:
+        assert self._conn is not None
+        now = now or int(time.time())
+        with self._conn:
+            for table, key in (
+                ("samples_raw", "raw"),
+                ("samples_1m", "1m"),
+                ("samples_1h", "1h"),
+            ):
+                self._conn.execute(
+                    f"DELETE FROM {table} WHERE ts < ?",  # noqa: S608 — fixed table names
+                    (now - self._retention[key],),
+                )
+        self._conn.execute("PRAGMA optimize")
+
+    async def _maintenance_loop(self) -> None:
+        last_retention = 0.0
+        while True:
+            await asyncio.sleep(MAINTENANCE_INTERVAL_S)
+            try:
+                await asyncio.to_thread(self.downsample_once_sync)
+                if time.monotonic() - last_retention > RETENTION_INTERVAL_S:
+                    last_retention = time.monotonic()
+                    await asyncio.to_thread(self.apply_retention_sync)
+            except Exception:  # pragma: no cover — never kill the loop
+                import logging
+
+                logging.getLogger("bifrost.metrics").exception("maintenance cycle failed")
+
     # ── query ────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def pick_resolution(from_ts: int, to_ts: int) -> str:
+        span = to_ts - from_ts
+        if span <= 6 * 3600:
+            return "raw"
+        if span <= 15 * 86400:
+            return "1m"
+        return "1h"
+
     def query_sync(
-        self, node_id: int, names: list[str], from_ts: int, to_ts: int
-    ) -> dict[str, list[tuple[int, float]]]:
-        """Raw-resolution query. Runs on its own read-only connection; call via
-        asyncio.to_thread from endpoints. Downsampled resolutions arrive in F3."""
+        self, node_id: int, names: list[str], from_ts: int, to_ts: int, res: str = "auto"
+    ) -> tuple[str, dict[str, list]]:
+        """Series query on a read-only connection; call via asyncio.to_thread.
+
+        Raw rows are [ts, value]; aggregated rows are [ts, avg, min, max]."""
+        if res == "auto":
+            res = self.pick_resolution(from_ts, to_ts)
         conn = sqlite3.connect(f"file:{self._path}?mode=ro", uri=True)
         try:
             conn.execute("PRAGMA busy_timeout=5000")
-            result: dict[str, list[tuple[int, float]]] = {}
+            result: dict[str, list] = {}
             for name in names:
                 row = conn.execute("SELECT id FROM metric_defs WHERE name=?", (name,)).fetchone()
                 if row is None:
                     result[name] = []
                     continue
-                result[name] = conn.execute(
-                    "SELECT ts, value FROM samples_raw"
-                    " WHERE node_id=? AND metric_id=? AND ts BETWEEN ? AND ? ORDER BY ts",
-                    (node_id, row[0], from_ts, to_ts),
-                ).fetchall()
-            return result
+                if res == "raw":
+                    result[name] = [
+                        list(r)
+                        for r in conn.execute(
+                            "SELECT ts, value FROM samples_raw"
+                            " WHERE node_id=? AND metric_id=? AND ts BETWEEN ? AND ? ORDER BY ts",
+                            (node_id, row[0], from_ts, to_ts),
+                        )
+                    ]
+                else:
+                    table = "samples_1m" if res == "1m" else "samples_1h"
+                    result[name] = [
+                        list(r)
+                        for r in conn.execute(
+                            f"SELECT ts, avg, min, max FROM {table}"  # noqa: S608
+                            " WHERE node_id=? AND metric_id=? AND ts BETWEEN ? AND ? ORDER BY ts",
+                            (node_id, row[0], from_ts, to_ts),
+                        )
+                    ]
+            return res, result
         finally:
             conn.close()

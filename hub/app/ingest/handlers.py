@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ingest import protocol as proto
-from app.models import Container, now_ts
+from app.models import Container, FsMount, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
 META_KEYS = ("icon", "url", "group", "hide")
@@ -74,3 +74,49 @@ def list_node_containers(
         select(Container).where(Container.node_id == node_id).order_by(Container.name)
     ).all()
     return [serialize_container(c, node_uuid, node_name) for c in rows]
+
+
+def serialize_mount(mount: FsMount) -> dict:
+    used_pct = None
+    if mount.total_bytes:
+        used_pct = round((mount.used_bytes or 0) * 100 / mount.total_bytes, 2)
+    return {
+        "mountpoint": mount.mountpoint,
+        "device": mount.device,
+        "fstype": mount.fstype,
+        "total_bytes": mount.total_bytes,
+        "used_bytes": mount.used_bytes,
+        "used_pct": used_pct,
+        "stale": mount.stale,
+        "updated_at": mount.updated_at,
+    }
+
+
+def apply_fs(session: Session, node_id: int, mounts: list[proto.FsMountInfo]) -> list[dict]:
+    """Reconcile the node's mount snapshot; returns the serialized list."""
+    existing = {
+        m.mountpoint: m
+        for m in session.scalars(select(FsMount).where(FsMount.node_id == node_id))
+    }
+    seen: set[str] = set()
+    ts = now_ts()
+    for info in mounts:
+        seen.add(info.mountpoint)
+        row = existing.get(info.mountpoint)
+        if row is None:
+            row = FsMount(node_id=node_id, mountpoint=info.mountpoint)
+            session.add(row)
+        row.device = info.device
+        row.fstype = info.fstype
+        row.total_bytes = info.total_bytes
+        row.used_bytes = info.used_bytes
+        row.stale = info.stale
+        row.updated_at = ts
+    for mountpoint, row in existing.items():
+        if mountpoint not in seen:
+            session.delete(row)
+    session.flush()
+    rows = session.scalars(
+        select(FsMount).where(FsMount.node_id == node_id).order_by(FsMount.mountpoint)
+    ).all()
+    return [serialize_mount(m) for m in rows]

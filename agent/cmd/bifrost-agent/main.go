@@ -13,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 
 	"github.com/zurdi15/bifrost/agent/internal/collectors/dockermon"
+	fscol "github.com/zurdi15/bifrost/agent/internal/collectors/fs"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/system"
 	"github.com/zurdi15/bifrost/agent/internal/config"
 	"github.com/zurdi15/bifrost/agent/internal/protocol"
@@ -57,16 +58,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// The hub can retune the collection interval live via config messages.
-	var intervalSecs atomic.Int64
+	// The hub can retune collection intervals live via config messages.
+	var intervalSecs, fsIntervalSecs atomic.Int64
 	intervalSecs.Store(int64(cfg.MetricsInterval / time.Second))
+	fsIntervalSecs.Store(60)
 	client.OnConfig = func(c protocol.AgentConfig) {
 		if c.MetricsIntervalS > 0 {
 			intervalSecs.Store(int64(c.MetricsIntervalS))
 		}
+		if c.FsIntervalS > 0 {
+			fsIntervalSecs.Store(int64(c.FsIntervalS))
+		}
 	}
 
 	go collectLoop(ctx, client, &intervalSecs)
+	go fsLoop(ctx, client, &fsIntervalSecs)
 	if dockerAvailable {
 		go dockerLoop(ctx, client, docker)
 	}
@@ -92,6 +98,23 @@ func collectLoop(ctx context.Context, client *transport.Client, intervalSecs *at
 			continue
 		}
 		send(client, protocol.NewMetrics(time.Now().Unix(), samples))
+	}
+}
+
+func fsLoop(ctx context.Context, client *transport.Client, intervalSecs *atomic.Int64) {
+	collector := fscol.New()
+	if mounts := collector.Collect(ctx); len(mounts) > 0 {
+		send(client, protocol.NewFs(time.Now().Unix(), mounts))
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Duration(intervalSecs.Load()) * time.Second):
+		}
+		if mounts := collector.Collect(ctx); len(mounts) > 0 {
+			send(client, protocol.NewFs(time.Now().Unix(), mounts))
+		}
 	}
 }
 

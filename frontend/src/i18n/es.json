@@ -32,7 +32,11 @@
   },
   "detail": {
     "back": "nodos",
-    "notFound": "Nodo no encontrado."
+    "notFound": "Nodo no encontrado.",
+    "history": "Histórico",
+    "filesystems": "Sistemas de ficheros",
+    "stale": "colgado",
+    "noHistory": "Aún no hay histórico — se acumula según reportan los agentes."
   },
   "services": {
     "title": "Servicios",

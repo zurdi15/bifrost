@@ -41,6 +41,23 @@ type Heartbeat struct {
 	TS  int64  `json:"ts"`
 }
 
+// FsMountInfo mirrors the hub's FsMountInfo schema.
+type FsMountInfo struct {
+	Mountpoint string `json:"mountpoint"`
+	Device     string `json:"device"`
+	Fstype     string `json:"fstype"`
+	TotalBytes int64  `json:"total_bytes"`
+	UsedBytes  int64  `json:"used_bytes"`
+	Stale      bool   `json:"stale"`
+}
+
+type Fs struct {
+	T      string        `json:"t"`
+	Seq    uint64        `json:"seq"`
+	TS     int64         `json:"ts"`
+	Mounts []FsMountInfo `json:"mounts"`
+}
+
 // ContainerInfo mirrors the hub's ContainerInfo schema.
 type ContainerInfo struct {
 	ContainerID string            `json:"container_id"`
@@ -72,6 +89,7 @@ type ContainerEvent struct {
 type Sequenced interface{ SetSeq(seq uint64) }
 
 func (m *Metrics) SetSeq(seq uint64)        { m.Seq = seq }
+func (m *Fs) SetSeq(seq uint64)             { m.Seq = seq }
 func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
 func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
 
@@ -84,6 +102,13 @@ func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []
 
 func NewMetrics(ts int64, samples []Sample) *Metrics {
 	return &Metrics{T: "metrics", TS: ts, Samples: samples}
+}
+
+func NewFs(ts int64, mounts []FsMountInfo) *Fs {
+	if mounts == nil {
+		mounts = []FsMountInfo{}
+	}
+	return &Fs{T: "fs", TS: ts, Mounts: mounts}
 }
 
 func NewContainersFull(ts int64, containers []ContainerInfo) *ContainersFull {

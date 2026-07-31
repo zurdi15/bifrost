@@ -1,4 +1,4 @@
-import type { MetricsResponse, NodeInfo, Snapshot } from './types';
+import type { FsMount, MetricsResponse, NodeInfo, Resolution, Snapshot } from './types';
 
 const BASE = '/api/v1';
 
@@ -20,9 +20,10 @@ export const api = {
   patchNode: (uuid: string, body: { name?: string; approve?: boolean }) =>
     request<NodeInfo>(`/nodes/${uuid}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteNode: (uuid: string) => request<void>(`/nodes/${uuid}`, { method: 'DELETE' }),
-  metrics: (node: string, names: string[], fromTs: number, toTs?: number) => {
-    const params = new URLSearchParams({ node, m: names.join(','), from: String(fromTs) });
+  metrics: (node: string, names: string[], fromTs: number, toTs?: number, res: Resolution = 'auto') => {
+    const params = new URLSearchParams({ node, m: names.join(','), from: String(fromTs), res });
     if (toTs) params.set('to', String(toTs));
     return request<MetricsResponse>(`/metrics?${params}`);
   },
+  nodeFs: (uuid: string) => request<FsMount[]>(`/nodes/${uuid}/fs`),
 };

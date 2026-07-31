@@ -51,12 +51,26 @@ export interface WsEvent {
   data: Record<string, unknown>;
 }
 
+export interface FsMount {
+  mountpoint: string;
+  device: string | null;
+  fstype: string | null;
+  total_bytes: number | null;
+  used_bytes: number | null;
+  used_pct: number | null;
+  stale: boolean;
+  updated_at: number;
+}
+
+export type Resolution = 'auto' | 'raw' | '1m' | '1h';
+
 export interface MetricsResponse {
   node: string;
   from: number;
   to: number;
-  res: string;
-  series: Record<string, [number, number][]>;
+  /** raw rows: [ts, value] · aggregated rows: [ts, avg, min, max] */
+  res: Exclude<Resolution, 'auto'>;
+  series: Record<string, number[][]>;
 }
 
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';

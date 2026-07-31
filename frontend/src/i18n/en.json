@@ -32,7 +32,11 @@
   },
   "detail": {
     "back": "nodes",
-    "notFound": "Node not found."
+    "notFound": "Node not found.",
+    "history": "History",
+    "filesystems": "Filesystems",
+    "stale": "stale",
+    "noHistory": "No history yet — it accumulates as agents report."
   },
   "services": {
     "title": "Services",
