@@ -3,6 +3,8 @@
 import json
 from datetime import datetime
 
+from app.ingest.handlers import extract_bifrost_meta
+
 
 def _parse_time(value: str | None) -> int | None:
     if not value:
@@ -24,6 +26,10 @@ def map_workload(kind: str, obj: dict) -> dict:
     else:
         ready = status.get("readyReplicas", 0)
     containers = spec.get("template", {}).get("spec", {}).get("containers", [])
+    # bifrost.* meta comes from labels AND annotations (annotations win —
+    # k8s label values cannot hold URLs, so bifrost.url must be one).
+    labels = meta.get("labels", {})
+    annotations = meta.get("annotations", {})
     return {
         "kind": kind,
         "namespace": meta.get("namespace", ""),
@@ -31,7 +37,8 @@ def map_workload(kind: str, obj: dict) -> dict:
         "replicas_desired": desired,
         "replicas_ready": ready,
         "images_json": json.dumps([c.get("image", "") for c in containers]),
-        "labels_json": json.dumps(meta.get("labels", {})),
+        "labels_json": json.dumps(labels),
+        "meta_json": json.dumps(extract_bifrost_meta({**labels, **annotations})),
     }
 
 

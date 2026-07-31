@@ -147,6 +147,7 @@ class K8sWorkload(Base):
     replicas_ready: Mapped[int | None]
     images_json: Mapped[str | None]
     labels_json: Mapped[str | None]
+    meta_json: Mapped[str | None]  # bifrost.* from labels+annotations
     updated_at: Mapped[int] = mapped_column(default=now_ts)
 
 
@@ -237,6 +238,20 @@ class EndpointCheck(Base):
     last_ok: Mapped[bool | None]
     last_latency_ms: Mapped[float | None]
     last_checked: Mapped[int | None]
+
+
+class Bookmark(Base):
+    """Plain dashboard links — no probing, no state, just name/url/icon."""
+
+    __tablename__ = "bookmarks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    url: Mapped[str]
+    icon: Mapped[str | None]
+    group_name: Mapped[str | None]
+    position: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[int] = mapped_column(default=now_ts)
 
 
 class Widget(Base):

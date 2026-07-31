@@ -123,7 +123,14 @@ async function save(): Promise<void> {
       </form>
 
       <template v-else>
-        <button class="edit" type="button" :aria-label="t('service.edit')" @click="openEdit">
+        <!-- k8s services take their meta from labels/annotations, not UI edits. -->
+        <button
+          v-if="container.source !== 'k8s'"
+          class="edit"
+          type="button"
+          :aria-label="t('service.edit')"
+          @click="openEdit"
+        >
           <BfIcon :path="mdiPencil" :size="12" />
         </button>
         <header class="head">

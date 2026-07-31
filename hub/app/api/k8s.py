@@ -115,6 +115,51 @@ def delete_cluster(
     _refresh_manager(request)
 
 
+# Namespaces whose workloads stay off the services dashboard unless they
+# carry explicit bifrost.* meta — nobody wants coredns as a "service".
+SYSTEM_NAMESPACES = {"kube-system", "kube-public", "kube-node-lease"}
+
+
+def k8s_services_list(session: Session) -> list[dict]:
+    """Workloads shaped like dashboard services (ContainerInfo-compatible)."""
+    rows = session.execute(
+        select(K8sWorkload, K8sCluster)
+        .join(K8sCluster, K8sWorkload.cluster_id == K8sCluster.id)
+        .order_by(K8sCluster.name, K8sWorkload.namespace, K8sWorkload.name)
+    ).all()
+    services = []
+    for workload, cluster in rows:
+        meta = json.loads(workload.meta_json or "{}")
+        if workload.namespace in SYSTEM_NAMESPACES and not meta:
+            continue
+        desired = workload.replicas_desired or 0
+        ready = workload.replicas_ready or 0
+        if desired == 0:
+            state, health = "paused", None
+        elif ready >= desired:
+            state, health = "running", None
+        else:
+            state, health = "running", "unhealthy"
+        images = json.loads(workload.images_json or "[]")
+        services.append(
+            {
+                "id": f"k8s:{cluster.id}:{workload.kind}:{workload.namespace}:{workload.name}",
+                "name": workload.name,
+                "image": images[0] if images else None,
+                "state": state,
+                "health": health,
+                "ports": [],
+                "meta": meta,
+                "started_at": None,
+                "updated_at": workload.updated_at,
+                "node_uuid": f"k8s:{cluster.id}",
+                "node_name": cluster.name,
+                "source": "k8s",
+            }
+        )
+    return services
+
+
 @router.get("/workloads")
 def list_workloads(session: Session = Depends(get_session)) -> list[dict]:
     return [

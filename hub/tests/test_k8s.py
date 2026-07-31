@@ -163,10 +163,20 @@ def test_sync_cluster_once_records_cronjob_run(client):
             ],
             "/apis/apps/v1/deployments": [
                 {
-                    "metadata": {"namespace": "media", "name": "romm"},
+                    "metadata": {
+                        "namespace": "media",
+                        "name": "romm",
+                        "labels": {"bifrost.group": "media"},
+                        "annotations": {"bifrost.url": "https://romm.example"},
+                    },
                     "spec": {"replicas": 1, "template": {"spec": {"containers": []}}},
                     "status": {"readyReplicas": 1},
-                }
+                },
+                {
+                    "metadata": {"namespace": "kube-system", "name": "coredns"},
+                    "spec": {"replicas": 1, "template": {"spec": {"containers": []}}},
+                    "status": {"readyReplicas": 1},
+                },
             ],
         }
     )
@@ -184,13 +194,26 @@ def test_sync_cluster_once_records_cronjob_run(client):
     assert len(runs) == 1 and runs[0]["succeeded"] is True
 
     workloads = client.get("/api/v1/k8s/workloads").json()
-    assert workloads[0]["name"] == "romm"
+    assert {w["name"] for w in workloads} == {"romm", "coredns"}
 
+    # Workloads surface as dashboard services with bifrost.* meta parsed from
+    # labels AND annotations; system namespaces stay hidden without meta.
+    services = client.get("/api/v1/snapshot").json()["k8s_services"]
+    assert [s["name"] for s in services] == ["romm"]
+    assert services[0]["state"] == "running"
+    assert services[0]["meta"] == {"group": "media", "url": "https://romm.example"}
+    assert services[0]["node_name"] == "k3s@test"
+    assert services[0]["source"] == "k8s"
+
+    # First sync changed inventory → one k8s.synced, then the cronjob run.
+    event = events.get_nowait()
+    assert event.topic == "k8s.synced"
     event = events.get_nowait()
     assert event.topic == "k8s.cronjob.run"
     assert event.data["succeeded"] is True
 
-    # Idempotent second sync: no duplicate run, no duplicate event.
+    # Idempotent second sync: no duplicate run, no events at all (nothing
+    # changed, so no k8s.synced either).
     asyncio.run(sync_cluster_once(cluster_id, fake, bus))  # type: ignore[arg-type]
     assert len(client.get(f"/api/v1/k8s/cronjobs/{cronjobs[0]['id']}/runs").json()) == 1
     assert events.qsize() == 0

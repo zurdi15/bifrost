@@ -11,6 +11,7 @@ export const useLiveStore = defineStore('live', () => {
   const retryAt = ref<number | null>(null);
   const nodes = reactive(new Map<string, NodeInfo>());
   const containers = reactive(new Map<string, ContainerInfo[]>());
+  const k8sServices = ref<ContainerInfo[]>([]);
   const fs = reactive(new Map<string, FsMount[]>());
   const disks = reactive(new Map<string, DiskInfo[]>());
   const lastSeq = ref(0);
@@ -29,9 +30,9 @@ export const useLiveStore = defineStore('live', () => {
   const downNodes = computed(() =>
     nodeList.value.filter((n) => n.status === 'offline' || n.status === 'degraded'),
   );
+  const allServices = computed(() => [...containers.values()].flat().concat(k8sServices.value));
   const containerList = computed(() =>
-    [...containers.values()]
-      .flat()
+    allServices.value
       .filter((c) => !c.meta.hide)
       .sort(
         (a, b) =>
@@ -40,8 +41,7 @@ export const useLiveStore = defineStore('live', () => {
       ),
   );
   const hiddenContainers = computed(() =>
-    [...containers.values()]
-      .flat()
+    allServices.value
       .filter((c) => c.meta.hide)
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
@@ -57,6 +57,7 @@ export const useLiveStore = defineStore('live', () => {
     for (const [uuid, list] of Object.entries(snap.containers ?? {})) {
       containers.set(uuid, list);
     }
+    k8sServices.value = snap.k8s_services ?? [];
     disks.clear();
     for (const [uuid, list] of Object.entries(snap.disks ?? {})) {
       disks.set(uuid, list);
@@ -88,6 +89,8 @@ export const useLiveStore = defineStore('live', () => {
       disks.set(event.data.uuid as string, event.data.disks as DiskInfo[]);
     } else if (event.topic.startsWith('k8s.')) {
       k8sVersion.value += 1;
+      // Inventory changed: refresh the k8s services on the dashboard.
+      if (event.topic === 'k8s.synced') void snapshot();
     } else if (event.topic === 'fs.updated') {
       fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
@@ -131,6 +134,7 @@ export const useLiveStore = defineStore('live', () => {
     retryAt,
     nodes,
     containers,
+    k8sServices,
     fs,
     disks,
     nodeList,

@@ -32,6 +32,10 @@ def register_discovered_cluster(
             name=name, source="discovered", discovered_node_id=node.id, enabled=True
         )
         session.add(cluster)
+    else:
+        # Discovered names follow the node (it may have healed from a
+        # container-id hostname to the real one since first contact).
+        cluster.name = name
 
     api_url = msg.api_endpoint
     if msg.kubeconfig:

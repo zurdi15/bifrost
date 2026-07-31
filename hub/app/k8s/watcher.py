@@ -40,13 +40,18 @@ WORKLOAD_PATHS = {
 }
 
 
-def _sync_table(session, model, cluster_id: int, rows: list[dict], keys: tuple[str, ...]):  # noqa: ANN001
+def _sync_table(
+    session, model, cluster_id: int, rows: list[dict], keys: tuple[str, ...]  # noqa: ANN001
+) -> bool:
+    """Reconcile one inventory table. Returns whether anything changed, so the
+    caller can tell the UI without spamming an event every sync cycle."""
     existing = {
         tuple(getattr(row, k) for k in keys): row
         for row in session.scalars(select(model).where(model.cluster_id == cluster_id))
     }
     seen = set()
     ts = now_ts()
+    changed = False
     for data in rows:
         key = tuple(data[k] for k in keys)
         seen.add(key)
@@ -54,13 +59,18 @@ def _sync_table(session, model, cluster_id: int, rows: list[dict], keys: tuple[s
         if row is None:
             row = model(cluster_id=cluster_id)
             session.add(row)
+            changed = True
         for field, value in data.items():
-            setattr(row, field, value)
+            if getattr(row, field, None) != value:
+                setattr(row, field, value)
+                changed = True
         if hasattr(row, "updated_at"):
             row.updated_at = ts
     for key, row in existing.items():
         if key not in seen:
             session.delete(row)
+            changed = True
+    return changed
 
 
 async def sync_cluster_once(cluster_id: int, client: K8sClient, bus: EventBus) -> None:
@@ -83,12 +93,17 @@ async def sync_cluster_once(cluster_id: int, client: K8sClient, bus: EventBus) -
     ]
 
     new_runs: list[dict] = []
+    inventory_changed = False
     with session_scope() as session:
-        _sync_table(session, K8sWorkload, cluster_id, workloads, ("kind", "namespace", "name"))
-        _sync_table(session, K8sPod, cluster_id, pods, ("namespace", "name"))
-        _sync_table(session, K8sService, cluster_id, services, ("namespace", "name"))
-        _sync_table(session, K8sIngress, cluster_id, ingresses, ("namespace", "name"))
-        _sync_table(session, K8sCronJob, cluster_id, cronjobs, ("namespace", "name"))
+        for model, rows, keys in (
+            (K8sWorkload, workloads, ("kind", "namespace", "name")),
+            (K8sPod, pods, ("namespace", "name")),
+            (K8sService, services, ("namespace", "name")),
+            (K8sIngress, ingresses, ("namespace", "name")),
+            (K8sCronJob, cronjobs, ("namespace", "name")),
+        ):
+            if _sync_table(session, model, cluster_id, rows, keys):
+                inventory_changed = True
         session.flush()
 
         cronjob_rows = {
@@ -122,8 +137,9 @@ async def sync_cluster_once(cluster_id: int, client: K8sClient, bus: EventBus) -
             )
             cronjob.last_result = "ok" if run["succeeded"] else "failed"
             cronjob.last_duration_s = run["duration_s"]
-            if run["finished_ts"]:
-                cronjob.last_run_ts = run["finished_ts"]
+            # last_run_ts stays owned by the mapper (lastScheduleTime):
+            # writing finished_ts here made every following sync flip it
+            # back and look like an inventory change.
             new_runs.append(
                 {
                     "cluster_id": cluster_id,
@@ -154,6 +170,8 @@ async def sync_cluster_once(cluster_id: int, client: K8sClient, bus: EventBus) -
             cluster.status = "ok"
             cluster.last_sync = now_ts()
 
+    if inventory_changed:
+        bus.publish("k8s.synced", {"cluster_id": cluster_id})
     for run in new_runs:
         bus.publish("k8s.cronjob.run", run)
 

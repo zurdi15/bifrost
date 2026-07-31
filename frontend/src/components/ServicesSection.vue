@@ -22,9 +22,15 @@ const filtered = computed(() =>
 const runningCount = computed(
   () => live.containerList.filter((c) => c.state === 'running').length,
 );
-const nodesWithContainers = computed(() =>
-  live.nodeList.filter((n) => (live.containers.get(n.uuid) ?? []).length > 0),
-);
+// Filter chips come from the services themselves — Docker nodes and k8s
+// clusters alike.
+const sources = computed(() => {
+  const seen = new Map<string, string>();
+  for (const container of [...live.containerList, ...live.hiddenContainers]) {
+    seen.set(container.node_uuid, container.node_name);
+  }
+  return [...seen.entries()].map(([uuid, name]) => ({ uuid, name }));
+});
 
 // Group headers via bifrost.group labels; ungrouped last.
 const groups = computed(() => {
@@ -66,14 +72,14 @@ function toggleNode(uuid: string): void {
           {{ t('service.showHidden', { count: live.hiddenContainers.length }) }}
         </button>
         <button
-          v-for="node in nodesWithContainers"
-          :key="node.uuid"
+          v-for="source in sources"
+          :key="source.uuid"
           class="filter"
-          :class="{ active: nodeFilter === node.uuid }"
+          :class="{ active: nodeFilter === source.uuid }"
           type="button"
-          @click="toggleNode(node.uuid)"
+          @click="toggleNode(source.uuid)"
         >
-          {{ node.name }}
+          {{ source.name }}
         </button>
       </span>
     </header>
@@ -95,7 +101,7 @@ function toggleNode(uuid: string): void {
 
 <style scoped>
 .services {
-  margin-top: 2rem;
+  margin-top: 0;
 }
 .section-head {
   display: flex;
@@ -119,6 +125,10 @@ function toggleNode(uuid: string): void {
 }
 .dimmed {
   opacity: 0.55;
+}
+/* Breathing room between a group and the next (incl. the ungrouped tail). */
+.group + .group {
+  margin-top: 1.4rem;
 }
 .filter {
   display: inline-flex;

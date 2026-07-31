@@ -50,6 +50,17 @@ export interface ContainerInfo {
   updated_at: number;
   node_uuid: string;
   node_name: string;
+  /** 'docker' container or 'k8s' workload — both render as service cards. */
+  source?: 'docker' | 'k8s';
+}
+
+export interface BookmarkInfo {
+  id: number;
+  name: string;
+  url: string;
+  icon: string | null;
+  group: string | null;
+  position: number;
 }
 
 export interface Snapshot {
@@ -57,6 +68,7 @@ export interface Snapshot {
   nodes: NodeInfo[];
   containers: Record<string, ContainerInfo[]>;
   disks: Record<string, DiskInfo[]>;
+  k8s_services?: ContainerInfo[];
 }
 
 export interface WsEvent {

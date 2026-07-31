@@ -67,6 +67,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
     WS client can detect gaps and know when to re-snapshot."""
     from app.api.containers import containers_by_node
     from app.api.disks import disks_by_node
+    from app.api.k8s import k8s_services_list
 
     registry: AgentRegistry = request.app.state.agent_registry
     nodes = session.scalars(select(Node).order_by(Node.created_at)).all()
@@ -75,6 +76,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
         "nodes": [node_to_dict(n, registry, _checks_for(session, n)) for n in nodes],
         "containers": containers_by_node(session),
         "disks": disks_by_node(session),
+        "k8s_services": k8s_services_list(session),
     }
 
 

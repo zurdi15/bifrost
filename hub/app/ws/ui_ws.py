@@ -26,6 +26,7 @@ TOPIC_CATEGORY = {
     "container.event": "containers",
     "k8s.cronjob.run": "k8s",
     "k8s.cluster.discovered": "k8s",
+    "k8s.synced": "k8s",
 }
 
 
