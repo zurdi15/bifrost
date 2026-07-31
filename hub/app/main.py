@@ -14,6 +14,7 @@ from app.api import events as events_api
 from app.api import health, nodes
 from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
+from app.api import widgets as widgets_api
 from app.bus import EventBus
 from app.checks.runner import checks_runner
 from app.config import settings
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(containers_api.router, prefix=api_prefix)
     app.include_router(disks_api.router, prefix=api_prefix)
     app.include_router(k8s_api.router, prefix=api_prefix)
+    app.include_router(widgets_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)

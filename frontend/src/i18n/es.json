@@ -67,5 +67,17 @@
     "name": "nombre (ej. haos)",
     "save": "añadir",
     "error": "no se pudo crear el endpoint"
+  },
+  "widgets": {
+    "title": "Ambient",
+    "edit": "editar",
+    "done": "listo",
+    "empty": "Sin widgets — entra en modo edición y añade un reloj o el clima.",
+    "clock": "reloj",
+    "weather": "clima",
+    "weatherError": "clima no disponible",
+    "save": "guardar",
+    "left": "mover izquierda",
+    "right": "mover derecha"
   }
 }

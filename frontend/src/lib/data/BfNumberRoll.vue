@@ -8,8 +8,10 @@ const props = withDefaults(
     value: number;
     decimals?: number;
     suffix?: string;
+    /** Zero-pad the integer part to this many characters (clocks). */
+    pad?: number;
   }>(),
-  { decimals: 0, suffix: '' },
+  { decimals: 0, suffix: '', pad: 0 },
 );
 
 const reduced = useReducedMotion();
@@ -25,8 +27,13 @@ watch(
   (v) => (displayed.value = v),
 );
 
-const chars = computed(() => displayed.value.toFixed(props.decimals).split(''));
-const label = computed(() => `${props.value.toFixed(props.decimals)}${props.suffix}`);
+function format(value: number): string {
+  const text = value.toFixed(props.decimals);
+  return props.pad > 0 ? text.padStart(props.pad, '0') : text;
+}
+
+const chars = computed(() => format(displayed.value).split(''));
+const label = computed(() => `${format(props.value)}${props.suffix}`);
 </script>
 
 <template>

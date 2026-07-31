@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AmbientSection from '@/components/AmbientSection.vue';
 import EndpointForm from '@/components/EndpointForm.vue';
 import NodeCard from '@/components/NodeCard.vue';
 import ServicesSection from '@/components/ServicesSection.vue';
@@ -62,6 +63,7 @@ const downCount = computed(() => live.downNodes.length);
     </div>
 
     <ServicesSection />
+    <AmbientSection />
   </section>
 </template>
 
