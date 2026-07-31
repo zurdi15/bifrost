@@ -85,6 +85,29 @@ type ContainerEvent struct {
 	Container ContainerInfo `json:"container"`
 }
 
+// SmartDisk mirrors the hub's SmartDisk schema.
+type SmartDisk struct {
+	Device         string   `json:"device"`
+	Model          string   `json:"model"`
+	Serial         string   `json:"serial"`
+	Kind           string   `json:"kind"`
+	CapacityBytes  int64    `json:"capacity_bytes"`
+	SmartStatus    string   `json:"smart_status"`
+	TempC          *float64 `json:"temp_c"`
+	PowerOnHours   *int64   `json:"power_on_hours"`
+	ReallocSectors *int64   `json:"realloc_sectors"`
+	PendingSectors *int64   `json:"pending_sectors"`
+	WearPct        *float64 `json:"wear_pct"`
+	RawJSON        string   `json:"raw_json"`
+}
+
+type Smart struct {
+	T     string      `json:"t"`
+	Seq   uint64      `json:"seq"`
+	TS    int64       `json:"ts"`
+	Disks []SmartDisk `json:"disks"`
+}
+
 // Sequenced is any agent→hub data frame the transport numbers and buffers.
 type Sequenced interface{ SetSeq(seq uint64) }
 
@@ -92,6 +115,7 @@ func (m *Metrics) SetSeq(seq uint64)        { m.Seq = seq }
 func (m *Fs) SetSeq(seq uint64)             { m.Seq = seq }
 func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
 func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
+func (m *Smart) SetSeq(seq uint64)          { m.Seq = seq }
 
 func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []string) Hello {
 	return Hello{
@@ -124,6 +148,13 @@ func NewContainerEvent(ts int64, action string, container ContainerInfo) *Contai
 		container.Labels = map[string]string{}
 	}
 	return &ContainerEvent{T: "container_event", TS: ts, Action: action, Container: container}
+}
+
+func NewSmart(ts int64, disks []SmartDisk) *Smart {
+	if disks == nil {
+		disks = []SmartDisk{}
+	}
+	return &Smart{T: "smart", TS: ts, Disks: disks}
 }
 
 func NewHeartbeat(seq uint64, ts int64) Heartbeat {

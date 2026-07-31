@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import containers as containers_api
+from app.api import disks as disks_api
 from app.api import events as events_api
 from app.api import health, nodes
 from app.api import metrics as metrics_api
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=api_prefix)
     app.include_router(nodes.router, prefix=api_prefix)
     app.include_router(containers_api.router, prefix=api_prefix)
+    app.include_router(disks_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)

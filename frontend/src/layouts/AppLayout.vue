@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onScopeDispose, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
 import { useLiveStore } from '@/stores/live';
 import { formatClock } from '@/utils/format';
 
+const { t } = useI18n();
 const live = useLiveStore();
 
 const now = ref(Math.floor(Date.now() / 1000));
@@ -23,6 +25,14 @@ const hubDown = computed(() => live.connection !== 'live');
 
     <header class="topbar">
       <RouterLink to="/" class="wordmark">⌁ bifrost</RouterLink>
+      <nav class="nav">
+        <RouterLink to="/" class="nav-link" exact-active-class="active">
+          {{ t('nav.dashboard') }}
+        </RouterLink>
+        <RouterLink to="/storage" class="nav-link" active-class="active">
+          {{ t('nav.storage') }}
+        </RouterLink>
+      </nav>
       <div class="right">
         <ConnectionPill />
         <span class="clock bf-metric">{{ clock }}</span>
@@ -71,6 +81,31 @@ const hubDown = computed(() => live.connection !== 'live');
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.nav {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: 1.5rem;
+  margin-right: auto;
+}
+.nav-link {
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--bf-radius-ctl);
+  font-size: 0.82rem;
+  font-weight: 550;
+  text-decoration: none;
+  color: var(--bf-ink-muted);
+  transition:
+    color var(--bf-dur-150),
+    background-color var(--bf-dur-150);
+}
+.nav-link:hover {
+  color: var(--bf-ink);
+  background: var(--bf-surface-raised);
+}
+.nav-link.active {
+  color: var(--bf-brand);
+  background: var(--bf-brand-tint);
 }
 .right {
   display: flex;

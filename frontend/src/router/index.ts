@@ -10,6 +10,7 @@ const router = createRouter({
       name: 'node-detail',
       component: () => import('@/views/NodeDetailView.vue'),
     },
+    { path: '/storage', name: 'storage', component: () => import('@/views/StorageView.vue') },
   ],
 });
 

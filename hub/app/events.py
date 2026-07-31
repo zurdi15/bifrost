@@ -24,6 +24,10 @@ PERSISTED_TOPICS = {
 def _severity(topic: str, data: dict) -> str:
     if topic == "node.status" and data.get("status") in ("offline", "degraded"):
         return "warning"
+    if topic == "disk.updated" and any(
+        d.get("smart_status") == "failed" for d in data.get("disks", [])
+    ):
+        return "warning"
     return PERSISTED_TOPICS.get(topic, "info")
 
 

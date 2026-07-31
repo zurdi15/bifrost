@@ -205,6 +205,25 @@ async def agent_ws(ws: WebSocket) -> None:
                 if fs_samples:
                     metrics.enqueue(node_id, ts, fs_samples)
                 bus.publish("fs.updated", {"uuid": node_uuid, "mounts": serialized_mounts})
+            elif isinstance(msg, proto.Smart):
+                with session_scope() as session:
+                    rows = handlers.apply_smart(session, node_id, msg.disks)
+                    db_node = session.get(Node, node_id)
+                    node_name = db_node.name if db_node else ""
+                    serialized_disks = [
+                        handlers.serialize_disk(d, node_uuid, node_name) for d in rows
+                    ]
+                conn.last_seq = msg.seq
+                # Disk temperature history (per serial).
+                ts = _effective_ts(msg.ts)
+                disk_samples = [
+                    (f"disk.{d['serial']}.temp", d["temp_c"])
+                    for d in serialized_disks
+                    if d["temp_c"] is not None
+                ]
+                if disk_samples:
+                    metrics.enqueue(node_id, ts, disk_samples)
+                bus.publish("disk.updated", {"uuid": node_uuid, "disks": serialized_disks})
             elif isinstance(msg, proto.ContainersFull):
                 with session_scope() as session:
                     handlers.apply_containers_full(session, node_id, msg.containers)

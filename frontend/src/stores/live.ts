@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref, shallowRef } from 'vue';
 
 import { api } from '@/api/client';
-import type { ConnectionState, ContainerInfo, FsMount, NodeInfo, WsEvent } from '@/api/types';
+import type { ConnectionState, ContainerInfo, DiskInfo, FsMount, NodeInfo, WsEvent } from '@/api/types';
 import { UiSocket } from '@/api/ws';
 import { useMetricsStore } from '@/stores/metrics';
 
@@ -12,6 +12,7 @@ export const useLiveStore = defineStore('live', () => {
   const nodes = reactive(new Map<string, NodeInfo>());
   const containers = reactive(new Map<string, ContainerInfo[]>());
   const fs = reactive(new Map<string, FsMount[]>());
+  const disks = reactive(new Map<string, DiskInfo[]>());
   const lastSeq = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
@@ -48,6 +49,10 @@ export const useLiveStore = defineStore('live', () => {
     for (const [uuid, list] of Object.entries(snap.containers ?? {})) {
       containers.set(uuid, list);
     }
+    disks.clear();
+    for (const [uuid, list] of Object.entries(snap.disks ?? {})) {
+      disks.set(uuid, list);
+    }
     lastSeq.value = snap.seq;
   }
 
@@ -71,6 +76,8 @@ export const useLiveStore = defineStore('live', () => {
       }
     } else if (event.topic === 'containers.updated') {
       containers.set(event.data.uuid as string, event.data.containers as ContainerInfo[]);
+    } else if (event.topic === 'disk.updated') {
+      disks.set(event.data.uuid as string, event.data.disks as DiskInfo[]);
     } else if (event.topic === 'fs.updated') {
       fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
@@ -115,6 +122,7 @@ export const useLiveStore = defineStore('live', () => {
     nodes,
     containers,
     fs,
+    disks,
     nodeList,
     containerList,
     upCount,

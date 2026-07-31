@@ -43,6 +43,7 @@ export interface Snapshot {
   seq: number;
   nodes: NodeInfo[];
   containers: Record<string, ContainerInfo[]>;
+  disks: Record<string, DiskInfo[]>;
 }
 
 export interface WsEvent {
@@ -60,6 +61,23 @@ export interface FsMount {
   used_pct: number | null;
   stale: boolean;
   updated_at: number;
+}
+
+export interface DiskInfo {
+  device: string;
+  model: string | null;
+  serial: string;
+  kind: string | null;
+  capacity_bytes: number | null;
+  smart_status: string | null;
+  temp_c: number | null;
+  power_on_hours: number | null;
+  realloc_sectors: number | null;
+  pending_sectors: number | null;
+  wear_pct: number | null;
+  updated_at: number;
+  node_uuid: string;
+  node_name: string;
 }
 
 export type Resolution = 'auto' | 'raw' | '1m' | '1h';

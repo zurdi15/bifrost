@@ -20,6 +20,7 @@ TOPIC_CATEGORY = {
     "metrics.live": "metrics",
     "node.status": "nodes",
     "fs.updated": "nodes",
+    "disk.updated": "nodes",
     "containers.updated": "containers",
     "container.event": "containers",
 }

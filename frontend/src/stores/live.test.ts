@@ -42,6 +42,7 @@ describe('live store', () => {
       seq: 7,
       nodes: [fakeNode('a'), fakeNode('b', { status: 'offline' })],
       containers: {},
+      disks: {},
     });
     await store.snapshot();
     expect(store.nodeList).toHaveLength(2);
@@ -52,7 +53,7 @@ describe('live store', () => {
 
   it('applies node.status deltas in place', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {}, disks: {} });
     await store.snapshot();
 
     store.applyEvent({ seq: 2, topic: 'node.status', data: { uuid: 'a', status: 'offline' } });
@@ -62,7 +63,7 @@ describe('live store', () => {
 
   it('applies metrics.live to node state', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {}, disks: {} });
     await store.snapshot();
 
     store.applyEvent({
@@ -75,7 +76,7 @@ describe('live store', () => {
 
   it('re-snapshots on a seq gap', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {}, disks: {} });
     await store.snapshot();
     expect(api.snapshot).toHaveBeenCalledTimes(1);
 
@@ -86,7 +87,7 @@ describe('live store', () => {
 
   it('re-snapshots when an unknown node reports status', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [], containers: {} });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [], containers: {}, disks: {} });
     await store.snapshot();
 
     store.applyEvent({ seq: 2, topic: 'node.status', data: { uuid: 'ghost', status: 'online' } });
@@ -95,7 +96,7 @@ describe('live store', () => {
 
   it('applies containers.updated per node', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {}, disks: {} });
     await store.snapshot();
 
     store.applyEvent({

@@ -41,5 +41,18 @@
   "services": {
     "title": "Servicios",
     "count": "{running}/{total} activos"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "storage": "Almacenamiento",
+    "jobs": "Jobs"
+  },
+  "storage": {
+    "title": "Almacenamiento",
+    "count": "{ok}/{total} discos ok",
+    "empty": "Ningún disco reportado todavía — el agente necesita acceso a dispositivos para smartctl (ver docs/agent.md).",
+    "prefail": "pre-fail",
+    "powerOn": "encendido",
+    "wear": "desgaste"
   }
 }

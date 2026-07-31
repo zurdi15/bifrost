@@ -41,5 +41,18 @@
   "services": {
     "title": "Services",
     "count": "{running}/{total} running"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "storage": "Storage",
+    "jobs": "Jobs"
+  },
+  "storage": {
+    "title": "Storage",
+    "count": "{ok}/{total} disks ok",
+    "empty": "No disks reported yet — the agent needs smartctl device access (see docs/agent.md).",
+    "prefail": "pre-fail",
+    "powerOn": "power on",
+    "wear": "wear"
   }
 }

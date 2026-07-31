@@ -44,6 +44,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
     """Initial UI state: everything the dashboard needs plus the bus seq, so the
     WS client can detect gaps and know when to re-snapshot."""
     from app.api.containers import containers_by_node
+    from app.api.disks import disks_by_node
 
     registry: AgentRegistry = request.app.state.agent_registry
     nodes = session.scalars(select(Node).order_by(Node.created_at)).all()
@@ -51,6 +52,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
         "seq": request.app.state.bus.seq,
         "nodes": [node_to_dict(n, registry) for n in nodes],
         "containers": containers_by_node(session),
+        "disks": disks_by_node(session),
     }
 
 

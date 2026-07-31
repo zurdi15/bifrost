@@ -14,6 +14,7 @@ import (
 
 	"github.com/zurdi15/bifrost/agent/internal/collectors/dockermon"
 	fscol "github.com/zurdi15/bifrost/agent/internal/collectors/fs"
+	smartcol "github.com/zurdi15/bifrost/agent/internal/collectors/smart"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/system"
 	"github.com/zurdi15/bifrost/agent/internal/config"
 	"github.com/zurdi15/bifrost/agent/internal/protocol"
@@ -47,6 +48,11 @@ func main() {
 	if dockerAvailable {
 		caps = append(caps, "docker")
 	}
+	smart := smartcol.New()
+	smartAvailable := smart.Available(ctx)
+	if smartAvailable {
+		caps = append(caps, "smart")
+	}
 
 	hello := protocol.NewHello(
 		version, cfg.NodeName, runtime.GOOS, runtime.GOARCH, bootTS, caps,
@@ -59,15 +65,19 @@ func main() {
 	}
 
 	// The hub can retune collection intervals live via config messages.
-	var intervalSecs, fsIntervalSecs atomic.Int64
+	var intervalSecs, fsIntervalSecs, smartIntervalSecs atomic.Int64
 	intervalSecs.Store(int64(cfg.MetricsInterval / time.Second))
 	fsIntervalSecs.Store(60)
+	smartIntervalSecs.Store(1800)
 	client.OnConfig = func(c protocol.AgentConfig) {
 		if c.MetricsIntervalS > 0 {
 			intervalSecs.Store(int64(c.MetricsIntervalS))
 		}
 		if c.FsIntervalS > 0 {
 			fsIntervalSecs.Store(int64(c.FsIntervalS))
+		}
+		if c.SmartIntervalS > 0 {
+			smartIntervalSecs.Store(int64(c.SmartIntervalS))
 		}
 	}
 
@@ -76,9 +86,13 @@ func main() {
 	if dockerAvailable {
 		go dockerLoop(ctx, client, docker)
 	}
+	if smartAvailable {
+		go smartLoop(ctx, client, smart, &smartIntervalSecs)
+	}
 
 	slog.Info("bifrost-agent starting",
-		"version", version, "node", cfg.NodeName, "hub", cfg.HubURL, "docker", dockerAvailable)
+		"version", version, "node", cfg.NodeName, "hub", cfg.HubURL,
+		"docker", dockerAvailable, "smart", smartAvailable)
 	client.Run(ctx)
 	slog.Info("bifrost-agent stopped")
 }
@@ -114,6 +128,25 @@ func fsLoop(ctx context.Context, client *transport.Client, intervalSecs *atomic.
 		}
 		if mounts := collector.Collect(ctx); len(mounts) > 0 {
 			send(client, protocol.NewFs(time.Now().Unix(), mounts))
+		}
+	}
+}
+
+func smartLoop(
+	ctx context.Context, client *transport.Client,
+	smart *smartcol.Collector, intervalSecs *atomic.Int64,
+) {
+	if disks := smart.Collect(ctx); len(disks) > 0 {
+		send(client, protocol.NewSmart(time.Now().Unix(), disks))
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Duration(intervalSecs.Load()) * time.Second):
+		}
+		if disks := smart.Collect(ctx); len(disks) > 0 {
+			send(client, protocol.NewSmart(time.Now().Unix(), disks))
 		}
 	}
 }

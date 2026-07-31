@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ingest import protocol as proto
-from app.models import Container, FsMount, now_ts
+from app.models import Container, Disk, FsMount, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
 META_KEYS = ("icon", "url", "group", "hide")
@@ -90,6 +90,60 @@ def serialize_mount(mount: FsMount) -> dict:
         "stale": mount.stale,
         "updated_at": mount.updated_at,
     }
+
+
+def serialize_disk(disk: Disk, node_uuid: str = "", node_name: str = "") -> dict:
+    return {
+        "device": disk.device,
+        "model": disk.model,
+        "serial": disk.serial,
+        "kind": disk.kind,
+        "capacity_bytes": disk.capacity_bytes,
+        "smart_status": disk.smart_status,
+        "temp_c": disk.temp_c,
+        "power_on_hours": disk.power_on_hours,
+        "realloc_sectors": disk.realloc_sectors,
+        "pending_sectors": disk.pending_sectors,
+        "wear_pct": disk.wear_pct,
+        "updated_at": disk.updated_at,
+        "node_uuid": node_uuid,
+        "node_name": node_name,
+    }
+
+
+def apply_smart(session: Session, node_id: int, disks: list[proto.SmartDisk]) -> list[Disk]:
+    """Upsert the node's disk set by serial; returns current rows."""
+    existing = {
+        d.serial: d for d in session.scalars(select(Disk).where(Disk.node_id == node_id))
+    }
+    seen: set[str] = set()
+    ts = now_ts()
+    for info in disks:
+        serial = info.serial or info.device  # some USB bridges hide serials
+        seen.add(serial)
+        row = existing.get(serial)
+        if row is None:
+            row = Disk(node_id=node_id, serial=serial, device=info.device)
+            session.add(row)
+        row.device = info.device
+        row.model = info.model
+        row.kind = info.kind
+        row.capacity_bytes = info.capacity_bytes
+        row.smart_status = info.smart_status
+        row.temp_c = info.temp_c
+        row.power_on_hours = info.power_on_hours
+        row.realloc_sectors = info.realloc_sectors
+        row.pending_sectors = info.pending_sectors
+        row.wear_pct = info.wear_pct
+        row.smart_json = info.raw_json
+        row.updated_at = ts
+    for serial, row in existing.items():
+        if serial not in seen:
+            session.delete(row)
+    session.flush()
+    return list(
+        session.scalars(select(Disk).where(Disk.node_id == node_id).order_by(Disk.device))
+    )
 
 
 def apply_fs(session: Session, node_id: int, mounts: list[proto.FsMountInfo]) -> list[dict]:
