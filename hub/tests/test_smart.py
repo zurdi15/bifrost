@@ -76,5 +76,7 @@ def test_disk_temp_metric_recorded(client):
             ).json()["series"]["disk.VAG12345.temp"]
             return series or None
 
-        series = wait_for(query)
+        # Generous deadline: the flush cadence is 0.05s in tests, but starved
+        # CI runners have blown through 3s before.
+        series = wait_for(query, timeout=10.0)
         assert series[0][1] == 38.0
