@@ -26,6 +26,8 @@ export const api = {
     return request<MetricsResponse>(`/metrics?${params}`);
   },
   nodeFs: (uuid: string) => request<FsMount[]>(`/nodes/${uuid}/fs`),
+  resolveIcons: (names: string[]) =>
+    request<Record<string, string | null>>(`/icons?names=${encodeURIComponent(names.join(','))}`),
   putServiceMeta: (
     nodeUuid: string,
     containerName: string,

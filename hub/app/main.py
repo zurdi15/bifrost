@@ -14,6 +14,7 @@ from app.api import containers as containers_api
 from app.api import disks as disks_api
 from app.api import events as events_api
 from app.api import health, nodes
+from app.api import icons as icons_api
 from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
 from app.api import widgets as widgets_api
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(disks_api.router, prefix=api_prefix)
     app.include_router(k8s_api.router, prefix=api_prefix)
     app.include_router(widgets_api.router, prefix=api_prefix)
+    app.include_router(icons_api.router, prefix=api_prefix)
     app.include_router(alerts_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)

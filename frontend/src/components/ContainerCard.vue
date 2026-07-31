@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { mdiOpenInNew, mdiPencil } from '@mdi/js';
 
@@ -10,12 +10,14 @@ import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
+import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
 
 const props = defineProps<{ container: ContainerInfo }>();
 
 const { t } = useI18n();
 const live = useLiveStore();
+const icons = useIconStore();
 
 // Container state/health → the shared node-status visual language.
 const status = computed(() => {
@@ -53,6 +55,16 @@ const shortImage = computed(() => {
 
 const displayName = computed(() => props.container.meta.name || props.container.name);
 const iconIsImage = computed(() => /^(https?:\/\/|\/)/.test(props.container.meta.icon ?? ''));
+
+// No explicit icon → resolve one from the service name (selfh.st via hub).
+watchEffect(() => {
+  if (!props.container.meta.icon) icons.ensure(props.container);
+});
+const autoIcon = computed(() =>
+  props.container.meta.icon ? null : icons.iconFor(props.container),
+);
+const autoIconBroken = ref(false);
+watch(autoIcon, () => (autoIconBroken.value = false));
 
 // ── customize (name/icon/url/group/hide overrides) ─────────────────────────
 const editing = ref(false);
@@ -119,6 +131,9 @@ async function save(): Promise<void> {
           <span v-if="container.meta.icon" class="icon">
             <img v-if="iconIsImage" :src="container.meta.icon" alt="" loading="lazy" />
             <template v-else>{{ container.meta.icon }}</template>
+          </span>
+          <span v-else-if="autoIcon && !autoIconBroken" class="icon">
+            <img :src="autoIcon" alt="" loading="lazy" @error="autoIconBroken = true" />
           </span>
           <span class="name" :title="container.name">{{ displayName }}</span>
           <BfChip v-if="container.meta.hide" tone="unknown">{{ t('service.hidden') }}</BfChip>
