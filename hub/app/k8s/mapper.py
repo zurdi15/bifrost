@@ -81,11 +81,20 @@ def map_ingress(obj: dict) -> dict:
     meta = obj.get("metadata", {})
     spec = obj.get("spec", {})
     hosts = [rule.get("host", "") for rule in spec.get("rules", []) if rule.get("host")]
+    # Backend service names let the dashboard link a workload to its ingress.
+    backends = set()
+    if name := spec.get("defaultBackend", {}).get("service", {}).get("name"):
+        backends.add(name)
+    for rule in spec.get("rules", []):
+        for path in rule.get("http", {}).get("paths", []):
+            if name := path.get("backend", {}).get("service", {}).get("name"):
+                backends.add(name)
     return {
         "namespace": meta.get("namespace", ""),
         "name": meta.get("name", ""),
         "hosts_json": json.dumps(hosts),
         "tls": bool(spec.get("tls")),
+        "backends_json": json.dumps(sorted(backends)),
     }
 
 

@@ -173,10 +173,52 @@ def test_sync_cluster_once_records_cronjob_run(client):
                     "status": {"readyReplicas": 1},
                 },
                 {
+                    "metadata": {"namespace": "admin", "name": "grafana"},
+                    "spec": {"replicas": 1, "template": {"spec": {"containers": []}}},
+                    "status": {"readyReplicas": 1},
+                },
+                {
                     "metadata": {"namespace": "kube-system", "name": "coredns"},
                     "spec": {"replicas": 1, "template": {"spec": {"containers": []}}},
                     "status": {"readyReplicas": 1},
                 },
+            ],
+            # Plumbing kinds stay off the dashboard unless annotated.
+            "/apis/apps/v1/daemonsets": [
+                {
+                    "metadata": {"namespace": "admin", "name": "node-exporter"},
+                    "spec": {"template": {"spec": {"containers": []}}},
+                    "status": {"desiredNumberScheduled": 1, "numberReady": 1},
+                }
+            ],
+            "/apis/apps/v1/statefulsets": [
+                {
+                    "metadata": {
+                        "namespace": "apps",
+                        "name": "postgres",
+                        "annotations": {"bifrost.group": "db"},
+                    },
+                    "spec": {"replicas": 1, "template": {"spec": {"containers": []}}},
+                    "status": {"readyReplicas": 1},
+                }
+            ],
+            "/apis/networking.k8s.io/v1/ingresses": [
+                {
+                    "metadata": {"namespace": "admin", "name": "grafana"},
+                    "spec": {
+                        "tls": [{"hosts": ["grafana.example"]}],
+                        "rules": [
+                            {
+                                "host": "grafana.example",
+                                "http": {
+                                    "paths": [
+                                        {"backend": {"service": {"name": "grafana"}}}
+                                    ]
+                                },
+                            }
+                        ],
+                    },
+                }
             ],
         }
     )
@@ -194,16 +236,22 @@ def test_sync_cluster_once_records_cronjob_run(client):
     assert len(runs) == 1 and runs[0]["succeeded"] is True
 
     workloads = client.get("/api/v1/k8s/workloads").json()
-    assert {w["name"] for w in workloads} == {"romm", "coredns"}
+    assert {w["name"] for w in workloads} == {
+        "romm", "grafana", "coredns", "node-exporter", "postgres",
+    }
 
-    # Workloads surface as dashboard services with bifrost.* meta parsed from
-    # labels AND annotations; system namespaces stay hidden without meta.
+    # One card per app: deployments always (outside system namespaces),
+    # statefulsets/daemonsets only when annotated. URLs derive from the
+    # matching ingress; the bifrost.url annotation wins over it.
     services = client.get("/api/v1/snapshot").json()["k8s_services"]
-    assert [s["name"] for s in services] == ["romm"]
-    assert services[0]["state"] == "running"
-    assert services[0]["meta"] == {"group": "media", "url": "https://romm.example"}
-    assert services[0]["node_name"] == "k3s@test"
-    assert services[0]["source"] == "k8s"
+    by_name = {s["name"]: s for s in services}
+    assert sorted(by_name) == ["grafana", "postgres", "romm"]
+    assert by_name["romm"]["meta"] == {"group": "media", "url": "https://romm.example"}
+    assert by_name["grafana"]["meta"]["url"] == "https://grafana.example"
+    assert by_name["postgres"]["meta"] == {"group": "db"}
+    assert by_name["romm"]["state"] == "running"
+    assert by_name["romm"]["node_name"] == "k3s@test"
+    assert by_name["romm"]["source"] == "k8s"
 
     # First sync changed inventory → one k8s.synced, then the cronjob run.
     event = events.get_nowait()

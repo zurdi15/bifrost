@@ -192,6 +192,7 @@ class K8sIngress(Base):
     name: Mapped[str]
     hosts_json: Mapped[str | None]
     tls: Mapped[bool] = mapped_column(default=False)
+    backends_json: Mapped[str | None]  # backend service names
     updated_at: Mapped[int] = mapped_column(default=now_ts)
 
 

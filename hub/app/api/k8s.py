@@ -120,18 +120,47 @@ def delete_cluster(
 SYSTEM_NAMESPACES = {"kube-system", "kube-public", "kube-node-lease"}
 
 
+def _ingress_urls(session: Session) -> dict[tuple[int, str], list[tuple[set[str], str]]]:
+    """(cluster, namespace) → [(match names, url)] from synced ingresses."""
+    lookup: dict[tuple[int, str], list[tuple[set[str], str]]] = {}
+    for ingress in session.scalars(select(K8sIngress)):
+        hosts = json.loads(ingress.hosts_json or "[]")
+        if not hosts:
+            continue
+        scheme = "https" if ingress.tls else "http"
+        names = set(json.loads(ingress.backends_json or "[]"))
+        names.add(ingress.name)
+        lookup.setdefault((ingress.cluster_id, ingress.namespace), []).append(
+            (names, f"{scheme}://{hosts[0]}")
+        )
+    return lookup
+
+
 def k8s_services_list(session: Session) -> list[dict]:
-    """Workloads shaped like dashboard services (ContainerInfo-compatible)."""
+    """Workloads shaped like dashboard services (ContainerInfo-compatible).
+
+    One card per *app*: deployments only — statefulsets/daemonsets are
+    plumbing unless they carry explicit bifrost.* meta. The URL falls out of
+    the workload's ingress (backend service or ingress named like it), with
+    the bifrost.url annotation as override."""
     rows = session.execute(
         select(K8sWorkload, K8sCluster)
         .join(K8sCluster, K8sWorkload.cluster_id == K8sCluster.id)
         .order_by(K8sCluster.name, K8sWorkload.namespace, K8sWorkload.name)
     ).all()
+    ingresses = _ingress_urls(session)
     services = []
     for workload, cluster in rows:
         meta = json.loads(workload.meta_json or "{}")
         if workload.namespace in SYSTEM_NAMESPACES and not meta:
             continue
+        if workload.kind != "deployment" and not meta:
+            continue
+        if "url" not in meta:
+            for names, url in ingresses.get((cluster.id, workload.namespace), []):
+                if workload.name in names:
+                    meta["url"] = url
+                    break
         desired = workload.replicas_desired or 0
         ready = workload.replicas_ready or 0
         if desired == 0:
