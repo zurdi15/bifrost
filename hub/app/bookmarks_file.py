@@ -33,6 +33,18 @@ logger = logging.getLogger("bifrost.bookmarks")
 WATCH_INTERVAL_S = 30
 
 
+def resolve_bookmarks_path() -> Path:
+    """Explicit BIFROST_BOOKMARKS_FILE wins; otherwise whichever of
+    bookmarks.yml / bookmarks.yaml exists in the data dir (.yml default)."""
+    if settings.bookmarks_file:
+        return settings.bookmarks_file
+    for candidate in ("bookmarks.yml", "bookmarks.yaml"):
+        path = settings.data_dir / candidate
+        if path.is_file():
+            return path
+    return settings.data_dir / "bookmarks.yml"
+
+
 def parse_bookmarks_yaml(text: str) -> list[dict]:
     """→ [{name, url, icon, group}] in file order. Raises ValueError on junk."""
     data = yaml.safe_load(text)
@@ -99,6 +111,15 @@ def sync_file_bookmarks(entries: list[dict]) -> bool:
 
 def load_bookmarks_file(path: Path) -> bool:
     """One parse+sync pass; parse errors keep the previous state."""
+    if path.is_dir():
+        # The classic Docker footgun: binding a file that didn't exist on the
+        # host yet makes Docker create a directory in its place.
+        logger.warning(
+            "bookmarks path %s is a directory, not a file — if you bind-mount "
+            "it, make sure the host file exists before the container starts",
+            path,
+        )
+        return False
     try:
         entries = parse_bookmarks_yaml(path.read_text())
     except FileNotFoundError:
@@ -113,17 +134,20 @@ def load_bookmarks_file(path: Path) -> bool:
 
 
 async def bookmarks_file_watcher(bus: EventBus) -> None:
-    """Startup sync + resync whenever the file's mtime changes."""
-    path = settings.bookmarks_file_path
+    """Startup sync + resync whenever the file's mtime changes. The path is
+    re-resolved every tick so a file created after startup (either .yml or
+    .yaml) gets picked up without a restart."""
+    path = await asyncio.to_thread(resolve_bookmarks_path)
     if await asyncio.to_thread(load_bookmarks_file, path):
         bus.publish("bookmarks.updated", {})
-    last_mtime = await asyncio.to_thread(_mtime, path)
+    last_state = (path, await asyncio.to_thread(_mtime, path))
     while True:
         await asyncio.sleep(WATCH_INTERVAL_S)
-        mtime = await asyncio.to_thread(_mtime, path)
-        if mtime == last_mtime:
+        path = await asyncio.to_thread(resolve_bookmarks_path)
+        state = (path, await asyncio.to_thread(_mtime, path))
+        if state == last_state:
             continue
-        last_mtime = mtime
+        last_state = state
         if await asyncio.to_thread(load_bookmarks_file, path):
             bus.publish("bookmarks.updated", {})
 

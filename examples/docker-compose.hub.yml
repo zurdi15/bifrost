@@ -12,4 +12,9 @@ services:
       BIFROST_AUTO_APPROVE: "true"
     volumes:
       - ./data:/data
-      - ./data/bookmarks.yml:/data/bookmarks.yml:ro
+      # Declarative bookmarks: with /data bind-mounted like above, just drop
+      # a bookmarks.yml (or .yaml) into ./data — no extra mount needed (see
+      # examples/bookmarks.yml). Only mount the file separately when /data is
+      # a named volume, and create it on the host FIRST (otherwise Docker
+      # makes a directory in its place):
+      #- ./bookmarks.yml:/data/bookmarks.yml:ro

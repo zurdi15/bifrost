@@ -12,12 +12,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("/data")
 
     # Declarative bookmarks (YAML, synced on start and on file change).
-    # Defaults to <data_dir>/bookmarks.yml when unset.
+    # Defaults to <data_dir>/bookmarks.yml or .yaml, whichever exists.
     bookmarks_file: Path | None = None
-
-    @property
-    def bookmarks_file_path(self) -> Path:
-        return self.bookmarks_file or self.data_dir / "bookmarks.yml"
 
     host: str = "0.0.0.0"
     port: int = 8000

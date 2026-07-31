@@ -1,6 +1,11 @@
 import pytest
 
-from app.bookmarks_file import load_bookmarks_file, parse_bookmarks_yaml
+from app.bookmarks_file import (
+    load_bookmarks_file,
+    parse_bookmarks_yaml,
+    resolve_bookmarks_path,
+)
+from app.config import settings
 
 YAML = """
 - group: media
@@ -63,3 +68,25 @@ def test_file_sync_mirrors_file_and_leaves_ui_rows(client, tmp_path):
     path.write_text("::: not yaml :::")
     assert load_bookmarks_file(path) is False
     assert [b["name"] for b in client.get("/api/v1/bookmarks").json()] == ["Router"]
+
+    # A directory in the file's place (Docker bind-mount of a missing host
+    # file) is ignored, not fatal.
+    directory = tmp_path / "as-dir"
+    directory.mkdir()
+    assert load_bookmarks_file(directory) is False
+
+
+def test_resolve_accepts_both_extensions(client, tmp_path, monkeypatch):
+    # client's fixture already points settings.data_dir at its own tmp dir;
+    # repoint it here to exercise resolution.
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(settings, "bookmarks_file", None)
+
+    assert resolve_bookmarks_path() == tmp_path / "bookmarks.yml"  # default
+    (tmp_path / "bookmarks.yaml").write_text("")
+    assert resolve_bookmarks_path() == tmp_path / "bookmarks.yaml"
+    (tmp_path / "bookmarks.yml").write_text("")
+    assert resolve_bookmarks_path() == tmp_path / "bookmarks.yml"  # .yml wins
+
+    monkeypatch.setattr(settings, "bookmarks_file", tmp_path / "custom.yaml")
+    assert resolve_bookmarks_path() == tmp_path / "custom.yaml"
