@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.alerts.engine import alerts_engine
+from app.api import alerts as alerts_api
 from app.api import containers as containers_api
 from app.api import disks as disks_api
 from app.api import events as events_api
@@ -66,6 +68,7 @@ def create_app() -> FastAPI:
             asyncio.create_task(events_recorder(app.state.bus), name="events-recorder"),
             asyncio.create_task(agent_ws.heartbeat_monitor(app.state), name="heartbeat-monitor"),
             asyncio.create_task(checks_runner(app.state), name="checks-runner"),
+            asyncio.create_task(alerts_engine(app.state.bus), name="alerts-engine"),
         ]
         logger.info("bifrost hub up — data dir %s", settings.data_dir)
         try:
@@ -88,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(disks_api.router, prefix=api_prefix)
     app.include_router(k8s_api.router, prefix=api_prefix)
     app.include_router(widgets_api.router, prefix=api_prefix)
+    app.include_router(alerts_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)

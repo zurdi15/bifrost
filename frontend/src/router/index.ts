@@ -12,6 +12,11 @@ const router = createRouter({
     },
     { path: '/storage', name: 'storage', component: () => import('@/views/StorageView.vue') },
     { path: '/jobs', name: 'jobs', component: () => import('@/views/JobsView.vue') },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+    },
   ],
 });
 

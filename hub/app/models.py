@@ -244,6 +244,21 @@ class Setting(Base):
     value_json: Mapped[str]
 
 
+class AlertRule(Base):
+    __tablename__ = "alert_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    # Event topic to match ('node.status', 'k8s.cronjob.run', … or '*').
+    kind: Mapped[str] = mapped_column(default="*")
+    min_severity: Mapped[str] = mapped_column(default="warning")  # info | warning
+    notifier: Mapped[str]  # 'ntfy' | 'webhook'
+    target: Mapped[str]  # ntfy topic URL / webhook URL
+    cooldown_s: Mapped[int] = mapped_column(default=300)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[int] = mapped_column(default=now_ts)
+
+
 class DbEvent(Base):
     __tablename__ = "events"
     __table_args__ = (Index("ix_events_ts", "ts"),)

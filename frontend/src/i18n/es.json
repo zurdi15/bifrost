@@ -45,7 +45,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "storage": "Almacenamiento",
-    "jobs": "Jobs"
+    "jobs": "Jobs",
+    "settings": "Alertas"
   },
   "storage": {
     "title": "Almacenamiento",
@@ -79,5 +80,16 @@
     "save": "guardar",
     "left": "mover izquierda",
     "right": "mover derecha"
+  },
+  "alerts": {
+    "title": "Reglas de alerta",
+    "name": "nombre",
+    "add": "añadir",
+    "empty": "Sin reglas — los eventos solo van a la timeline. Añade una regla para recibir avisos por ntfy o webhook.",
+    "test": "probar",
+    "enable": "activar",
+    "disable": "desactivar",
+    "testOk": "notificación de prueba enviada ✓",
+    "testFail": "fallo de entrega"
   }
 }

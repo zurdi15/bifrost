@@ -45,7 +45,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "storage": "Storage",
-    "jobs": "Jobs"
+    "jobs": "Jobs",
+    "settings": "Alerts"
   },
   "storage": {
     "title": "Storage",
@@ -79,5 +80,16 @@
     "save": "save",
     "left": "move left",
     "right": "move right"
+  },
+  "alerts": {
+    "title": "Alert rules",
+    "name": "name",
+    "add": "add",
+    "empty": "No rules — events flow to the timeline only. Add a rule to get notified via ntfy or a webhook.",
+    "test": "test",
+    "enable": "enable",
+    "disable": "disable",
+    "testOk": "test notification sent ✓",
+    "testFail": "delivery failed"
   }
 }
