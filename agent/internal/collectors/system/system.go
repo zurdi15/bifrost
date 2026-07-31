@@ -103,8 +103,11 @@ func (c *Collector) collectNet(ctx context.Context, now time.Time, add func(stri
 }
 
 func (c *Collector) collectTemps(ctx context.Context, add func(string, float64)) {
-	temps, err := sensors.TemperaturesWithContext(ctx)
-	if err != nil || len(temps) == 0 {
+	// gopsutil returns partial results alongside a warnings error when any
+	// sensor fails to read (e.g. a powered-down wifi card's hwmon returns
+	// empty) — bailing on err would throw away every good sensor with it.
+	temps, _ := sensors.TemperaturesWithContext(ctx)
+	if len(temps) == 0 {
 		return
 	}
 	byKey := map[string]float64{}

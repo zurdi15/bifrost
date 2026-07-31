@@ -2,6 +2,8 @@ package system
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +40,38 @@ func TestFingerprintIsStableHex(t *testing.T) {
 	}
 	if len(a) != 64 || strings.ToLower(a) != a {
 		t.Fatalf("fingerprint not sha256 hex: %q", a)
+	}
+}
+
+// Regression: a single unreadable sensor (a powered-down iwlwifi hwmon reads
+// empty, exactly as seen on real hardware) makes gopsutil return the good
+// sensors ALONGSIDE a warnings error. Bailing on that error dropped the CPU
+// temperature entirely on any machine with one flaky sensor.
+func TestCollectTempsSurvivesBrokenSensor(t *testing.T) {
+	sys := t.TempDir()
+	write := func(path, content string) {
+		t.Helper()
+		full := filepath.Join(sys, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("class/hwmon/hwmon0/name", "iwlwifi_1\n")
+	write("class/hwmon/hwmon0/temp1_input", "") // sleeping wifi: empty read
+	write("class/hwmon/hwmon1/name", "coretemp\n")
+	write("class/hwmon/hwmon1/temp1_label", "Package id 0\n")
+	write("class/hwmon/hwmon1/temp1_input", "84000\n")
+	t.Setenv("HOST_SYS", sys)
+
+	samples := map[string]float64{}
+	New().collectTemps(context.Background(), func(name string, value float64) {
+		samples[name] = value
+	})
+	if samples["temp.cpu"] != 84.0 {
+		t.Fatalf("want temp.cpu=84.0 despite the broken sensor, got %v", samples)
 	}
 }
 
