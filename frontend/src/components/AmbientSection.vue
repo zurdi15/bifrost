@@ -241,7 +241,9 @@ async function saveConfig(widget: WidgetRow, config: Record<string, unknown>): P
   position: relative;
 }
 .s-2x1 {
-  grid-column: span 2;
+  /* Full row rather than span 2: the grid may be a single column when the
+     section sits in the dashboard's side rail. */
+  grid-column: 1 / -1;
 }
 .cell.editing {
   border-style: dashed;

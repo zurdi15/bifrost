@@ -18,8 +18,11 @@ const downCount = computed(() => live.downNodes.length);
 </script>
 
 <template>
-  <section>
-    <header class="section-head">
+  <!-- Widgets are contextual extras: on wide screens they live in a side
+       column instead of competing with nodes/services as another row. -->
+  <div class="dash">
+    <section class="main">
+      <header class="section-head">
       <h2 class="title">{{ t('nodes.title') }}</h2>
       <BfChip mono>
         {{ t('nodes.up', { up: live.upCount, total: live.nodeList.length }) }}
@@ -62,12 +65,30 @@ const downCount = computed(() => live.downNodes.length);
       </RouterLink>
     </div>
 
-    <ServicesSection />
-    <AmbientSection />
-  </section>
+      <ServicesSection />
+    </section>
+
+    <AmbientSection class="aside" />
+  </div>
 </template>
 
 <style scoped>
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 2rem;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+  .dash > .aside {
+    position: sticky;
+    top: 0.5rem;
+    margin-top: 0;
+  }
+}
 .section-head {
   display: flex;
   align-items: center;
