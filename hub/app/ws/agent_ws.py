@@ -6,11 +6,13 @@ import secrets
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.bus import EventBus
 from app.config import settings
 from app.db import session_scope
+from app.ingest import handlers
 from app.ingest import protocol as proto
 from app.metrics.store import MetricsStore
 from app.models import Node, now_ts
@@ -126,7 +128,12 @@ async def agent_ws(ws: WebSocket) -> None:
         node.last_seen = now_ts()
         previous_status = node.status
         node.status = "online"
-        node_id, node_uuid, resume_from = node.id, node.uuid, node.last_seq
+        # Same process reconnecting: resume from what we processed. Fresh
+        # process (start_seq below our position): follow the agent — its
+        # counter restarted and old frames are gone anyway.
+        resume_from = min(node.last_seq, hello.start_seq)
+        node.last_seq = resume_from
+        node_id, node_uuid = node.id, node.uuid
 
     if previous_status != "online":
         bus.publish("node.status", {"uuid": node_uuid, "status": "online"})
@@ -152,7 +159,15 @@ async def agent_ws(ws: WebSocket) -> None:
     unacked = 0
     try:
         while True:
-            msg = proto.parse_agent_message(await ws.receive_text())
+            raw = await ws.receive_text()
+            try:
+                msg = proto.parse_agent_message(raw)
+            except ValidationError:
+                # A malformed frame must not kill the connection: the agent
+                # would resend it from its ring forever. Skip it — later acks
+                # move the agent past it.
+                logger.warning("skipping unparseable frame from %s: %.200s", node_uuid, raw)
+                continue
             if isinstance(msg, proto.Hello):
                 continue
 
@@ -175,6 +190,28 @@ async def agent_ws(ws: WebSocket) -> None:
                 bus.publish(
                     "metrics.live",
                     {"uuid": node_uuid, "ts": ts, "samples": dict(samples)},
+                )
+            elif isinstance(msg, proto.ContainersFull):
+                with session_scope() as session:
+                    handlers.apply_containers_full(session, node_id, msg.containers)
+                    db_node = session.get(Node, node_id)
+                    serialized = handlers.list_node_containers(
+                        session, node_id, node_uuid, db_node.name if db_node else ""
+                    )
+                conn.last_seq = msg.seq
+                bus.publish(
+                    "containers.updated", {"uuid": node_uuid, "containers": serialized}
+                )
+            elif isinstance(msg, proto.ContainerEvent):
+                conn.last_seq = msg.seq
+                bus.publish(
+                    "container.event",
+                    {
+                        "uuid": node_uuid,
+                        "action": msg.action,
+                        "name": msg.container.name,
+                        "image": msg.container.image,
+                    },
                 )
             else:
                 # fs / containers / smart / k8s_detected land in later phases;

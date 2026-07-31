@@ -78,3 +78,13 @@ func (r *Ring) Len() int {
 	defer r.mu.Unlock()
 	return len(r.entries)
 }
+
+// First returns the oldest buffered seq, or ok=false when empty.
+func (r *Ring) First() (uint64, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.entries) == 0 {
+		return 0, false
+	}
+	return r.entries[0].Seq, true
+}

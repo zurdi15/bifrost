@@ -6,7 +6,8 @@ import (
 )
 
 func TestMetricsRoundtrip(t *testing.T) {
-	msg := NewMetrics(7, 1234, []Sample{{Name: "cpu.pct", Value: 42.5}})
+	msg := NewMetrics(1234, []Sample{{Name: "cpu.pct", Value: 42.5}})
+	msg.SetSeq(7)
 	raw, err := json.Marshal(msg)
 	if err != nil {
 		t.Fatal(err)

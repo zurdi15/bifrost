@@ -41,6 +41,7 @@ describe('live store', () => {
     vi.mocked(api.snapshot).mockResolvedValue({
       seq: 7,
       nodes: [fakeNode('a'), fakeNode('b', { status: 'offline' })],
+      containers: {},
     });
     await store.snapshot();
     expect(store.nodeList).toHaveLength(2);
@@ -51,7 +52,7 @@ describe('live store', () => {
 
   it('applies node.status deltas in place', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')] });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
     await store.snapshot();
 
     store.applyEvent({ seq: 2, topic: 'node.status', data: { uuid: 'a', status: 'offline' } });
@@ -61,7 +62,7 @@ describe('live store', () => {
 
   it('applies metrics.live to node state', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')] });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
     await store.snapshot();
 
     store.applyEvent({
@@ -74,7 +75,7 @@ describe('live store', () => {
 
   it('re-snapshots on a seq gap', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')] });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
     await store.snapshot();
     expect(api.snapshot).toHaveBeenCalledTimes(1);
 
@@ -85,10 +86,39 @@ describe('live store', () => {
 
   it('re-snapshots when an unknown node reports status', async () => {
     const store = useLiveStore();
-    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [] });
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [], containers: {} });
     await store.snapshot();
 
     store.applyEvent({ seq: 2, topic: 'node.status', data: { uuid: 'ghost', status: 'online' } });
     expect(api.snapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies containers.updated per node', async () => {
+    const store = useLiveStore();
+    vi.mocked(api.snapshot).mockResolvedValue({ seq: 1, nodes: [fakeNode('a')], containers: {} });
+    await store.snapshot();
+
+    store.applyEvent({
+      seq: 2,
+      topic: 'containers.updated',
+      data: {
+        uuid: 'a',
+        containers: [
+          {
+            id: 'c1', name: 'romm', image: 'x', state: 'running', health: '',
+            ports: [], meta: { group: 'media' }, started_at: 0, updated_at: 0,
+            node_uuid: 'a', node_name: 'a',
+          },
+          {
+            id: 'c2', name: 'secret', image: 'x', state: 'running', health: '',
+            ports: [], meta: { hide: true }, started_at: 0, updated_at: 0,
+            node_uuid: 'a', node_name: 'a',
+          },
+        ],
+      },
+    });
+    expect(store.containers.get('a')).toHaveLength(2);
+    // hidden containers never reach the visible list
+    expect(store.containerList.map((c) => c.name)).toEqual(['romm']);
   });
 });

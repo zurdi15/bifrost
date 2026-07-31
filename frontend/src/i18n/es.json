@@ -33,5 +33,9 @@
   "detail": {
     "back": "nodos",
     "notFound": "Nodo no encontrado."
+  },
+  "services": {
+    "title": "Servicios",
+    "count": "{running}/{total} activos"
   }
 }

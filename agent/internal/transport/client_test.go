@@ -44,9 +44,15 @@ func (h *fakeHub) handler(t *testing.T) http.HandlerFunc {
 			t.Errorf("first message = %q, want hello", msgType)
 			return
 		}
+		var hello protocol.Hello
+		_ = json.Unmarshal(raw, &hello)
 
 		h.mu.Lock()
 		h.conns++
+		// Mirror hub semantics: a fresh agent (low start_seq) resets our position.
+		if hello.StartSeq < h.resume {
+			h.resume = hello.StartSeq
+		}
 		resume := h.resume
 		h.mu.Unlock()
 
@@ -119,8 +125,8 @@ func TestClientHandshakeAndMetrics(t *testing.T) {
 	client, cancel := startClient(t, server.URL)
 	defer cancel()
 
-	client.Frames <- []protocol.Sample{{Name: "cpu.pct", Value: 12.0}}
-	client.Frames <- []protocol.Sample{{Name: "cpu.pct", Value: 34.0}}
+	client.Out <- protocol.NewMetrics(0, []protocol.Sample{{Name: "cpu.pct", Value: 12.0}})
+	client.Out <- protocol.NewMetrics(0, []protocol.Sample{{Name: "cpu.pct", Value: 34.0}})
 
 	waitFor(t, 3*time.Second, func() bool {
 		hub.mu.Lock()
@@ -149,7 +155,7 @@ func TestClientResumesAfterDrop(t *testing.T) {
 	client, cancel := startClient(t, server.URL)
 	defer cancel()
 
-	client.Frames <- []protocol.Sample{{Name: "a", Value: 1}}
+	client.Out <- protocol.NewMetrics(0, []protocol.Sample{{Name: "a", Value: 1}})
 	waitFor(t, 3*time.Second, func() bool {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
@@ -161,7 +167,7 @@ func TestClientResumesAfterDrop(t *testing.T) {
 	hub.mu.Unlock()
 
 	// Queued while disconnected; must arrive after the automatic reconnect.
-	client.Frames <- []protocol.Sample{{Name: "b", Value: 2}}
+	client.Out <- protocol.NewMetrics(0, []protocol.Sample{{Name: "b", Value: 2}})
 
 	waitFor(t, 10*time.Second, func() bool {
 		hub.mu.Lock()
@@ -174,6 +180,30 @@ func TestClientResumesAfterDrop(t *testing.T) {
 	last := hub.metrics[len(hub.metrics)-1]
 	if last.Samples[0].Name != "b" {
 		t.Fatalf("expected queued frame after resume, got %+v", last)
+	}
+}
+
+func TestFreshProcessResetsHubPosition(t *testing.T) {
+	// Regression: hub remembers last_seq=12 from a previous agent process; a
+	// restarted (stateless) agent declares start_seq=0 in hello, the hub
+	// resets its dedup position, and seq 1 flows instead of being dropped.
+	hub := &fakeHub{resume: 12, ackAfter: 1}
+	server := httptest.NewServer(hub.handler(t))
+	defer server.Close()
+
+	client, cancel := startClient(t, server.URL)
+	defer cancel()
+
+	client.Out <- protocol.NewMetrics(0, []protocol.Sample{{Name: "cpu.pct", Value: 1}})
+	waitFor(t, 3*time.Second, func() bool {
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		return len(hub.metrics) == 1
+	})
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.metrics[0].Seq != 1 {
+		t.Fatalf("seq = %d, want 1 (hub position reset by start_seq=0)", hub.metrics[0].Seq)
 	}
 }
 

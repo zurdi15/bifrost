@@ -12,6 +12,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/host"
 
+	"github.com/zurdi15/bifrost/agent/internal/collectors/dockermon"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/system"
 	"github.com/zurdi15/bifrost/agent/internal/config"
 	"github.com/zurdi15/bifrost/agent/internal/protocol"
@@ -39,8 +40,15 @@ func main() {
 		bootTS = int64(bt)
 	}
 
+	caps := []string{"system"}
+	docker := dockermon.New(dockermon.DefaultSocket)
+	dockerAvailable := docker.Available(ctx)
+	if dockerAvailable {
+		caps = append(caps, "docker")
+	}
+
 	hello := protocol.NewHello(
-		version, cfg.NodeName, runtime.GOOS, runtime.GOARCH, bootTS, []string{"system"},
+		version, cfg.NodeName, runtime.GOOS, runtime.GOARCH, bootTS, caps,
 	)
 
 	client, err := transport.NewClient(cfg.HubURL, cfg.EnrollToken, system.Fingerprint(), hello)
@@ -59,8 +67,12 @@ func main() {
 	}
 
 	go collectLoop(ctx, client, &intervalSecs)
+	if dockerAvailable {
+		go dockerLoop(ctx, client, docker)
+	}
 
-	slog.Info("bifrost-agent starting", "version", version, "node", cfg.NodeName, "hub", cfg.HubURL)
+	slog.Info("bifrost-agent starting",
+		"version", version, "node", cfg.NodeName, "hub", cfg.HubURL, "docker", dockerAvailable)
 	client.Run(ctx)
 	slog.Info("bifrost-agent stopped")
 }
@@ -79,11 +91,63 @@ func collectLoop(ctx context.Context, client *transport.Client, intervalSecs *at
 		if len(samples) == 0 {
 			continue
 		}
-		select {
-		case client.Frames <- samples:
-		default:
-			// Transport backlog (hub down, ring absorbing): drop this round
-			// rather than block collection forever.
+		send(client, protocol.NewMetrics(time.Now().Unix(), samples))
+	}
+}
+
+// dockerLoop reconciles the container list on start, every minute and shortly
+// after any lifecycle event; the events themselves stream to the hub live.
+func dockerLoop(ctx context.Context, client *transport.Client, docker *dockermon.Client) {
+	reconcile := func() {
+		containers, err := docker.List(ctx)
+		if err != nil {
+			slog.Warn("docker list failed", "err", err)
+			return
 		}
+		send(client, protocol.NewContainersFull(time.Now().Unix(), containers))
+	}
+	reconcile()
+
+	events := make(chan dockermon.Event, 16)
+	go func() {
+		for ctx.Err() == nil {
+			if err := docker.Events(ctx, events); err != nil && ctx.Err() == nil {
+				slog.Warn("docker event stream lost, reconnecting", "err", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
+			}
+		}
+	}()
+
+	// Debounce timer: burst of events → one reconcile shortly after.
+	var pendingReconcile *time.Timer
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			reconcile()
+		case ev := <-events:
+			send(client, protocol.NewContainerEvent(time.Now().Unix(), ev.Action,
+				protocol.ContainerInfo{ContainerID: ev.ID, Name: ev.Name, Image: ev.Image}))
+			if pendingReconcile != nil {
+				pendingReconcile.Stop()
+			}
+			pendingReconcile = time.AfterFunc(1500*time.Millisecond, reconcile)
+		}
+	}
+}
+
+func send(client *transport.Client, msg protocol.Sequenced) {
+	select {
+	case client.Out <- msg:
+	default:
+		// Transport backlog (hub down, ring absorbing): drop this frame
+		// rather than block collection forever.
 	}
 }

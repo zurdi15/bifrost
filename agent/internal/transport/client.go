@@ -38,10 +38,10 @@ type Client struct {
 	seq        atomic.Uint64
 	agentToken atomic.Pointer[string]
 
-	// Frames receives metric batches from collectors; the pump sequences and
-	// rings them even while disconnected, so a hub outage loses nothing
-	// (beyond the ring's graceful thinning).
-	Frames chan []protocol.Sample
+	// Out receives data frames from collectors; the pump sequences and rings
+	// them even while disconnected, so a hub outage loses nothing (beyond the
+	// ring's graceful thinning).
+	Out    chan protocol.Sequenced
 	notify chan struct{}
 
 	// OnConfig fires on hello_ack and on live config pushes from the hub.
@@ -61,7 +61,7 @@ func NewClient(hubURL, enrollToken, fingerprint string, hello protocol.Hello) (*
 		fingerprint: fingerprint,
 		hello:       hello,
 		ring:        NewRing(ringSize),
-		Frames:      make(chan []protocol.Sample, 64),
+		Out:         make(chan protocol.Sequenced, 64),
 		notify:      make(chan struct{}, 1),
 	}
 	c.heartbeatInterval.Store(15)
@@ -118,9 +118,10 @@ func (c *Client) pump(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case samples := <-c.Frames:
+		case msg := <-c.Out:
 			seq := c.seq.Add(1)
-			frame, err := json.Marshal(protocol.NewMetrics(seq, time.Now().Unix(), samples))
+			msg.SetSeq(seq)
+			frame, err := json.Marshal(msg)
 			if err != nil {
 				continue
 			}
@@ -159,7 +160,15 @@ func (c *Client) session(ctx context.Context) error {
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	conn.SetReadLimit(1 << 20)
 
-	if err := c.writeJSON(ctx, conn, c.hello); err != nil {
+	// start_seq = position before our oldest undelivered frame: everything
+	// after it is still resendable from the ring, so the hub can rewind its
+	// dedup position to exactly there (fresh process → 0 → full reset).
+	hello := c.hello
+	hello.StartSeq = c.seq.Load()
+	if first, ok := c.ring.First(); ok {
+		hello.StartSeq = first - 1
+	}
+	if err := c.writeJSON(ctx, conn, hello); err != nil {
 		return fmt.Errorf("hello: %w", err)
 	}
 

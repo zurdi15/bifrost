@@ -4,6 +4,9 @@ Transport: WebSocket at `ws(s)://<hub>/api/ws/agent`. One JSON object per text f
 The canonical schema lives in `hub/app/ingest/protocol.py` (Pydantic); the Go mirror is
 `agent/internal/protocol/`. Within a proto version, changes are **additive only** —
 unknown fields must be ignored by both sides. The hub accepts proto `N` and `N-1`.
+JSON `null` for list/map fields is treated as empty (Go marshals nil that way), and a
+frame that fails to parse is skipped with a warning — never a reason to drop the
+connection, since the agent would resend it from its ring forever.
 
 ## Handshake
 
@@ -18,8 +21,13 @@ X-Bifrost-Fingerprint: <sha256 hex>    # sha256 of host /etc/machine-id (or fall
 
 ```json
 {"t":"hello","proto":1,"agent_version":"0.1.0","hostname":"nas1","os":"linux",
- "arch":"arm64","boot_ts":1753900000,"caps":["system"]}
+ "arch":"arm64","boot_ts":1753900000,"caps":["system","docker"],"start_seq":0}
 ```
+
+`start_seq` is the position before the agent's oldest undelivered frame (0 on a
+fresh process — agents are stateless and restart their counter). The hub takes
+`min(stored last_seq, start_seq)` as its dedup position, so a restarted agent
+is never silently deduplicated into the void.
 
 2. Hub replies `hello_ack`:
 

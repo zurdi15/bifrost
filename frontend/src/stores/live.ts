@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref, shallowRef } from 'vue';
 
 import { api } from '@/api/client';
-import type { ConnectionState, NodeInfo, WsEvent } from '@/api/types';
+import type { ConnectionState, ContainerInfo, NodeInfo, WsEvent } from '@/api/types';
 import { UiSocket } from '@/api/ws';
 import { useMetricsStore } from '@/stores/metrics';
 
@@ -10,6 +10,7 @@ export const useLiveStore = defineStore('live', () => {
   const connection = ref<ConnectionState>('connecting');
   const retryAt = ref<number | null>(null);
   const nodes = reactive(new Map<string, NodeInfo>());
+  const containers = reactive(new Map<string, ContainerInfo[]>());
   const lastSeq = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
@@ -24,6 +25,16 @@ export const useLiveStore = defineStore('live', () => {
   const downNodes = computed(() =>
     nodeList.value.filter((n) => n.status === 'offline' || n.status === 'degraded'),
   );
+  const containerList = computed(() =>
+    [...containers.values()]
+      .flat()
+      .filter((c) => !c.meta.hide)
+      .sort(
+        (a, b) =>
+          (a.meta.group ?? '￿').localeCompare(b.meta.group ?? '￿') ||
+          a.name.localeCompare(b.name),
+      ),
+  );
 
   async function snapshot(): Promise<void> {
     const snap = await api.snapshot();
@@ -31,6 +42,10 @@ export const useLiveStore = defineStore('live', () => {
     for (const node of snap.nodes) {
       nodes.set(node.uuid, node);
       if (node.live) metrics.ingest(node.uuid, node.live.samples);
+    }
+    containers.clear();
+    for (const [uuid, list] of Object.entries(snap.containers ?? {})) {
+      containers.set(uuid, list);
     }
     lastSeq.value = snap.seq;
   }
@@ -53,6 +68,8 @@ export const useLiveStore = defineStore('live', () => {
       } else {
         void snapshot(); // unknown node appeared: fetch everything
       }
+    } else if (event.topic === 'containers.updated') {
+      containers.set(event.data.uuid as string, event.data.containers as ContainerInfo[]);
     } else if (event.topic === 'metrics.live') {
       const uuid = event.data.uuid as string;
       const samples = event.data.samples as Record<string, number>;
@@ -93,7 +110,9 @@ export const useLiveStore = defineStore('live', () => {
     connection,
     retryAt,
     nodes,
+    containers,
     nodeList,
+    containerList,
     upCount,
     downNodes,
     lastSeq,

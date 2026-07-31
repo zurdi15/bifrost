@@ -18,6 +18,9 @@ type Hello struct {
 	Arch         string   `json:"arch"`
 	BootTS       int64    `json:"boot_ts"`
 	Caps         []string `json:"caps"`
+	// Current seq counter position; 0 on a fresh process so the hub resets
+	// its dedup position instead of dropping every new frame.
+	StartSeq uint64 `json:"start_seq"`
 }
 
 type Sample struct {
@@ -38,6 +41,40 @@ type Heartbeat struct {
 	TS  int64  `json:"ts"`
 }
 
+// ContainerInfo mirrors the hub's ContainerInfo schema.
+type ContainerInfo struct {
+	ContainerID string            `json:"container_id"`
+	Name        string            `json:"name"`
+	Image       string            `json:"image"`
+	State       string            `json:"state"`
+	Health      string            `json:"health"`
+	Ports       []string          `json:"ports"`
+	Labels      map[string]string `json:"labels"`
+	StartedAt   int64             `json:"started_at"`
+}
+
+type ContainersFull struct {
+	T          string          `json:"t"`
+	Seq        uint64          `json:"seq"`
+	TS         int64           `json:"ts"`
+	Containers []ContainerInfo `json:"containers"`
+}
+
+type ContainerEvent struct {
+	T         string        `json:"t"`
+	Seq       uint64        `json:"seq"`
+	TS        int64         `json:"ts"`
+	Action    string        `json:"action"`
+	Container ContainerInfo `json:"container"`
+}
+
+// Sequenced is any agent→hub data frame the transport numbers and buffers.
+type Sequenced interface{ SetSeq(seq uint64) }
+
+func (m *Metrics) SetSeq(seq uint64)        { m.Seq = seq }
+func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
+func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
+
 func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []string) Hello {
 	return Hello{
 		T: "hello", Proto: Version, AgentVersion: agentVersion,
@@ -45,8 +82,23 @@ func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []
 	}
 }
 
-func NewMetrics(seq uint64, ts int64, samples []Sample) Metrics {
-	return Metrics{T: "metrics", Seq: seq, TS: ts, Samples: samples}
+func NewMetrics(ts int64, samples []Sample) *Metrics {
+	return &Metrics{T: "metrics", TS: ts, Samples: samples}
+}
+
+func NewContainersFull(ts int64, containers []ContainerInfo) *ContainersFull {
+	return &ContainersFull{T: "containers_full", TS: ts, Containers: containers}
+}
+
+func NewContainerEvent(ts int64, action string, container ContainerInfo) *ContainerEvent {
+	// Normalize nil slices/maps: they marshal as JSON null otherwise.
+	if container.Ports == nil {
+		container.Ports = []string{}
+	}
+	if container.Labels == nil {
+		container.Labels = map[string]string{}
+	}
+	return &ContainerEvent{T: "container_event", TS: ts, Action: action, Container: container}
 }
 
 func NewHeartbeat(seq uint64, ts int64) Heartbeat {

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api import containers as containers_api
 from app.api import events as events_api
 from app.api import health, nodes
 from app.api import metrics as metrics_api
@@ -30,6 +31,7 @@ def run_migrations() -> None:
     ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
     cfg = Config(str(ini_path))
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{settings.state_db_path}")
+    cfg.attributes["configure_logger"] = False
     command.upgrade(cfg, "head")
 
 
@@ -65,6 +67,7 @@ def create_app() -> FastAPI:
     api_prefix = "/api/v1"
     app.include_router(health.router, prefix=api_prefix)
     app.include_router(nodes.router, prefix=api_prefix)
+    app.include_router(containers_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)

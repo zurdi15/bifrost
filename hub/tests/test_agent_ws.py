@@ -114,6 +114,40 @@ def test_duplicate_seq_ignored(client):
         assert [v for _, v in series["cpu.pct"]] == [10.0]
 
 
+def test_restarted_agent_resets_seq_position(client):
+    """A stateless agent restart resets seq to 0; the hub must follow the
+    hello's start_seq instead of dropping every new frame as a duplicate."""
+    now = int(time.time())
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        node_uuid = json.loads(ws.receive_text())["node_uuid"]
+        for seq in range(1, 15):
+            ws.send_text(metrics_frame(seq, now - 100 + seq, {"cpu.pct": float(seq)}))
+        # >= ACK_EVERY messages force a last_seq persist before disconnect.
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            if json.loads(ws.receive_text())["t"] == "ack":
+                break
+
+    # Restarted process: hello declares start_seq 0 (default in hello_frame).
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        ack = json.loads(ws.receive_text())
+        assert ack["resume_from_seq"] == 0
+
+        ws.send_text(metrics_frame(1, now + 10, {"cpu.pct": 77.0}))
+        deadline = time.time() + 3
+        found = False
+        while time.time() < deadline and not found:
+            series = client.get(
+                "/api/v1/metrics",
+                params={"node": node_uuid, "m": "cpu.pct", "from": now, "to": now + 60},
+            ).json()["series"]["cpu.pct"]
+            found = any(v == 77.0 for _, v in series)
+            time.sleep(0.05)
+        assert found, "fresh-process frame was dropped as duplicate"
+
+
 def test_pending_approval_flow(client, monkeypatch):
     from app.config import settings
 

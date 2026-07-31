@@ -19,6 +19,8 @@ METRICS_THROTTLE_S = 5.0
 TOPIC_CATEGORY = {
     "metrics.live": "metrics",
     "node.status": "nodes",
+    "containers.updated": "containers",
+    "container.event": "containers",
 }
 
 
@@ -27,7 +29,7 @@ async def ui_ws(ws: WebSocket) -> None:
     bus: EventBus = ws.app.state.bus
     await ws.accept()
 
-    subscriptions: set[str] = {"metrics", "nodes", "events"}
+    subscriptions: set[str] = {"metrics", "nodes", "containers", "events"}
     queue = bus.subscribe()
     last_metric_sent: dict[str, float] = {}
 

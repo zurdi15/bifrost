@@ -7,10 +7,23 @@ fields. Bump PROTO_VERSION on breaking changes; the hub accepts N and N-1.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, TypeAdapter
 
 PROTO_VERSION = 1
 MIN_PROTO_VERSION = 1
+
+
+def _none_to_list(v: object) -> object:
+    return [] if v is None else v
+
+
+def _none_to_dict(v: object) -> object:
+    return {} if v is None else v
+
+
+# Go marshals nil slices/maps as JSON null; tolerate that everywhere.
+StrList = Annotated[list[str], BeforeValidator(_none_to_list)]
+StrMap = Annotated[dict[str, str], BeforeValidator(_none_to_dict)]
 
 
 class _Msg(BaseModel):
@@ -28,7 +41,11 @@ class Hello(_Msg):
     os: str = ""
     arch: str = ""
     boot_ts: int = 0
-    caps: list[str] = []
+    caps: StrList = []
+    # Where the agent's seq counter currently stands. A freshly restarted
+    # (stateless) agent declares 0 so the hub resets its dedup position
+    # instead of discarding every new frame as a duplicate.
+    start_seq: int = 0
 
 
 class Sample(_Msg):
@@ -40,7 +57,7 @@ class Metrics(_Msg):
     t: Literal["metrics"]
     seq: int
     ts: int
-    samples: list[Sample]
+    samples: list[Sample] = []
 
 
 class FsMountInfo(_Msg):
@@ -65,8 +82,8 @@ class ContainerInfo(_Msg):
     image: str = ""
     state: str = ""
     health: str = ""
-    ports: list[str] = []
-    labels: dict[str, str] = {}
+    ports: StrList = []
+    labels: StrMap = {}
     started_at: int = 0
 
 

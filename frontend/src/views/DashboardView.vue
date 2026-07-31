@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import NodeCard from '@/components/NodeCard.vue';
+import ServicesSection from '@/components/ServicesSection.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfSkeleton from '@/lib/structural/BfSkeleton.vue';
 import { useLiveStore } from '@/stores/live';
@@ -57,6 +58,8 @@ const downCount = computed(() => live.downNodes.length);
         <NodeCard :node="node" />
       </RouterLink>
     </div>
+
+    <ServicesSection />
   </section>
 </template>
 
