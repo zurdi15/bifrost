@@ -22,6 +22,29 @@ def test_enroll_and_hello_ack(client):
         assert nodes[0]["uuid"] == ack["node_uuid"]
 
 
+def test_name_follows_hostname_until_renamed(client):
+    """Regression: agents running in Docker used to report the container id
+    as hostname. Once the agent reports the real host hostname, the node name
+    must heal — but an explicit user rename always wins."""
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame(hostname="745247e22129"))
+        ws.receive_text()
+
+    # Fixed agent reconnects with the real hostname → name follows.
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame(hostname="gateway"))
+        ws.receive_text()
+        node = client.get("/api/v1/nodes").json()[0]
+        assert node["name"] == "gateway"
+
+    # Explicit rename: future hostname changes no longer touch the name.
+    client.patch(f"/api/v1/nodes/{node['uuid']}", json={"name": "puerta"})
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame(hostname="gateway-2"))
+        ws.receive_text()
+        assert client.get("/api/v1/nodes").json()[0]["name"] == "puerta"
+
+
 def test_wrong_token_rejected(client):
     with pytest.raises(WebSocketDisconnect), client.websocket_connect(
         "/api/ws/agent", headers=agent_headers(token="wrong")

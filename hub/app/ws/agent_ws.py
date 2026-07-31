@@ -98,6 +98,7 @@ async def agent_ws(ws: WebSocket) -> None:
             node = Node(
                 fingerprint=fingerprint,
                 name=hello.hostname or fingerprint[:12],
+                hostname=hello.hostname or None,
                 kind="agent",
                 status="new" if settings.auto_approve else "pending",
                 approved_at=now_ts() if settings.auto_approve else None,
@@ -121,6 +122,14 @@ async def agent_ws(ws: WebSocket) -> None:
             await ws.close(code=WS_FORBIDDEN)
             return
 
+        # The name follows the reported hostname unless the user renamed the
+        # node (then name != last reported hostname and is left alone). This
+        # also heals nodes enrolled before the agent learned to read the
+        # host's hostname instead of its container id.
+        if hello.hostname and hello.hostname != node.hostname:
+            if node.name in (node.hostname, fingerprint[:12]):
+                node.name = hello.hostname
+            node.hostname = hello.hostname
         node.os = hello.os or node.os
         node.arch = hello.arch or node.arch
         node.agent_version = hello.agent_version or node.agent_version

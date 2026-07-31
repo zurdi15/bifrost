@@ -24,6 +24,9 @@ class Node(Base):
     uuid: Mapped[str] = mapped_column(unique=True, default=new_uuid)
     fingerprint: Mapped[str | None] = mapped_column(unique=True)  # NULL for kind='endpoint'
     name: Mapped[str]
+    # Last hostname the agent reported. `name` follows it until the user
+    # renames the node explicitly (name != hostname ⇒ custom, never touched).
+    hostname: Mapped[str | None]
     kind: Mapped[str] = mapped_column(default="agent")  # 'agent' | 'endpoint'
     status: Mapped[str] = mapped_column(default="pending")
     os: Mapped[str | None]
