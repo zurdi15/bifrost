@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     # Host process/uptime visibility
     pid: host
+    # Host hostname visibility (otherwise the node shows up as a container id)
+    uts: host
     environment:
       BIFROST_AGENT_HUB_URL: http://hub.example:8000
       BIFROST_AGENT_ENROLL_TOKEN: change-me

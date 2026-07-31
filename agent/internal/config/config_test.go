@@ -6,44 +6,44 @@ import (
 	"testing"
 )
 
-// Regression: inside Docker, os.Hostname() is the container id. The host's
-// hostname must come from the host mounts when they are available.
-func TestHostHostnamePrefersHostMounts(t *testing.T) {
+// Regression: inside Docker, os.Hostname() is the container id — and
+// /proc/sys/kernel/hostname is no way out (procfs answers with the READER's
+// UTS namespace, so a host /proc mount still returns the container's name;
+// verified against a real docker run). The host's /etc/hostname under
+// HOST_ROOT is the reliable source.
+func TestHostHostnameReadsHostRootEtcHostname(t *testing.T) {
 	dir := t.TempDir()
-
-	proc := filepath.Join(dir, "proc")
-	if err := os.MkdirAll(filepath.Join(proc, "sys/kernel"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(proc, "sys/kernel/hostname"), []byte("gateway\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	root := filepath.Join(dir, "rootfs")
 	if err := os.MkdirAll(filepath.Join(root, "etc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "etc/hostname"), []byte("gateway-etc\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "etc/hostname"), []byte("gateway\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Setenv("HOST_PROC", proc)
 	t.Setenv("HOST_ROOT", root)
 	if got := hostHostname(); got != "gateway" {
-		t.Fatalf("want hostname from HOST_PROC, got %q", got)
+		t.Fatalf("want hostname from HOST_ROOT/etc/hostname, got %q", got)
 	}
 
-	// Without /proc, /etc/hostname from the root mount is next.
-	t.Setenv("HOST_PROC", filepath.Join(dir, "missing"))
-	if got := hostHostname(); got != "gateway-etc" {
-		t.Fatalf("want hostname from HOST_ROOT, got %q", got)
-	}
-
-	// No usable mounts: fall back to os.Hostname (whatever it is, non-empty
-	// on any test host).
+	// No usable mount: fall back to os.Hostname (correct under uts: host).
 	t.Setenv("HOST_ROOT", filepath.Join(dir, "missing"))
 	own, _ := os.Hostname()
 	if got := hostHostname(); got != own {
 		t.Fatalf("want os.Hostname fallback %q, got %q", own, got)
+	}
+
+	// An empty /etc/hostname must not win over the fallback.
+	empty := filepath.Join(dir, "empty-root")
+	if err := os.MkdirAll(filepath.Join(empty, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(empty, "etc/hostname"), []byte("\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOST_ROOT", empty)
+	if got := hostHostname(); got != own {
+		t.Fatalf("empty /etc/hostname must fall back to %q, got %q", own, got)
 	}
 }
 

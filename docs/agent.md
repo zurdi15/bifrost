@@ -9,7 +9,7 @@ See [examples/docker-compose.agent.yml](../examples/docker-compose.agent.yml).
 |---|---|
 | `BIFROST_AGENT_HUB_URL` | Hub base URL reachable from the node (`http://` or `https://`) |
 | `BIFROST_AGENT_ENROLL_TOKEN` | Must match the hub's `BIFROST_ENROLL_TOKEN` |
-| `BIFROST_AGENT_NODE_NAME` | Optional friendly name (default: hostname) |
+| `BIFROST_AGENT_NODE_NAME` | Optional friendly name (default: the host's hostname, read from `HOST_ROOT/etc/hostname`, else `os.Hostname()` — correct under `uts: host`) |
 | `BIFROST_AGENT_METRICS_INTERVAL` | Seconds between metric batches (default 10) |
 
 ## Container permissions, least → most
@@ -18,6 +18,7 @@ Base (system metrics — always):
 
 ```yaml
 pid: host
+uts: host   # host hostname; without it the node shows up as a container id
 volumes:
   - /proc:/host/proc:ro
   - /sys:/host/sys:ro
