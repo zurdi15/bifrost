@@ -5,7 +5,8 @@
     "down": "{count} CAÍDOS",
     "empty": "Sin nodos todavía — despliega un agente y aparecerá aquí.",
     "lastSeen": "visto por última vez",
-    "uptime": "uptime"
+    "uptime": "uptime",
+    "approve": "aprobar"
   },
   "status": {
     "online": "activo",

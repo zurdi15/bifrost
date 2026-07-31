@@ -5,7 +5,8 @@
     "down": "{count} DOWN",
     "empty": "No nodes yet — deploy an agent and it will appear here.",
     "lastSeen": "last seen",
-    "uptime": "uptime"
+    "uptime": "uptime",
+    "approve": "approve"
   },
   "status": {
     "online": "online",

@@ -9,7 +9,7 @@ services:
       # openssl rand -hex 32
       BIFROST_ENROLL_TOKEN: change-me
       # false → new agents wait as 'pending' until approved in the UI
-      BIFROST_AUTO_APPROVE: "true"
+      BIFROST_AUTO_APPROVE: "false"
     volumes:
       - bifrost-data:/data
 

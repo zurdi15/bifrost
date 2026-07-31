@@ -2,7 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+
+import { api } from '@/api/client';
 import type { NodeInfo } from '@/api/types';
+import BfButton from '@/lib/primitives/BfButton.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import BfGauge from '@/lib/data/BfGauge.vue';
@@ -10,6 +13,7 @@ import BfNumberRoll from '@/lib/data/BfNumberRoll.vue';
 import BfSparkline from '@/lib/data/BfSparkline.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
 import BfSweep from '@/lib/data/BfSweep.vue';
+import { useLiveStore } from '@/stores/live';
 import { useMetricsStore } from '@/stores/metrics';
 import { formatClock, formatUptime } from '@/utils/format';
 
@@ -17,6 +21,22 @@ const props = defineProps<{ node: NodeInfo }>();
 
 const { t } = useI18n();
 const metrics = useMetricsStore();
+const live = useLiveStore();
+
+const approving = ref(false);
+
+// The card lives inside a RouterLink: stop the navigation, approve, refresh.
+async function approve(eventArg: Event): Promise<void> {
+  eventArg.preventDefault();
+  eventArg.stopPropagation();
+  approving.value = true;
+  try {
+    await api.patchNode(props.node.uuid, { approve: true });
+    await live.snapshot();
+  } finally {
+    approving.value = false;
+  }
+}
 
 const isDown = computed(
   () => props.node.status === 'offline' || props.node.status === 'degraded',
@@ -58,6 +78,12 @@ watch(
       <BfChip v-if="isDown" tone="down" mono class="bf-pop-in">
         {{ t(`status.${node.status}`) }}
       </BfChip>
+      <template v-if="node.status === 'pending'">
+        <BfChip tone="warn" mono>{{ t('status.pending') }}</BfChip>
+        <BfButton size="sm" variant="primary" :disabled="approving" @click="approve">
+          {{ t('nodes.approve') }}
+        </BfButton>
+      </template>
     </header>
 
     <p class="meta">
