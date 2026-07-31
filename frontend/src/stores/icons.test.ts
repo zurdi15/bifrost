@@ -21,6 +21,12 @@ describe('iconCandidates', () => {
     ]);
     expect(iconCandidates({ name: 'zerobyte', image: null })).toEqual(['zerobyte']);
   });
+
+  it('prefers the custom display name when present', () => {
+    expect(
+      iconCandidates({ name: 'stack-webapp-1', image: null, meta: { name: 'Grafana' } }),
+    ).toEqual(['grafana', 'stack-webapp-1', 'stack-webapp']);
+  });
 });
 
 describe('icon store', () => {

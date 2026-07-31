@@ -57,9 +57,23 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "nodes": "Nodes",
     "storage": "Storage",
     "jobs": "Jobs",
     "settings": "Alerts"
+  },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "add": "bookmark",
+    "edit": "edit bookmark",
+    "name": "name",
+    "url": "https://…",
+    "icon": "icon (emoji or image URL, optional)",
+    "group": "group (optional)",
+    "save": "save",
+    "cancel": "cancel",
+    "remove": "delete",
+    "empty": "No bookmarks — add links to the things you open every day."
   },
   "storage": {
     "title": "Storage",

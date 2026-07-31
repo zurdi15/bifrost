@@ -57,9 +57,23 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "nodes": "Nodos",
     "storage": "Almacenamiento",
     "jobs": "Jobs",
     "settings": "Alertas"
+  },
+  "bookmarks": {
+    "title": "Marcadores",
+    "add": "marcador",
+    "edit": "editar marcador",
+    "name": "nombre",
+    "url": "https://…",
+    "icon": "icono (emoji o URL de imagen, opcional)",
+    "group": "grupo (opcional)",
+    "save": "guardar",
+    "cancel": "cancelar",
+    "remove": "borrar",
+    "empty": "Sin marcadores — añade enlaces a lo que abres cada día."
   },
   "storage": {
     "title": "Almacenamiento",

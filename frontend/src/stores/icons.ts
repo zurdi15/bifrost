@@ -6,7 +6,8 @@ import { iconCandidates } from '@/utils/autoIcon';
 
 interface IconSubject {
   name: string;
-  image: string | null;
+  image?: string | null;
+  meta?: { name?: string };
 }
 
 /** Auto-icon resolution: cards call ensure() for services without an icon;

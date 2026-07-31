@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onScopeDispose, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { mdiBellOutline, mdiCalendarClock, mdiHarddisk, mdiViewDashboardOutline } from '@mdi/js';
+import {
+  mdiBellOutline,
+  mdiCalendarClock,
+  mdiHarddisk,
+  mdiServer,
+  mdiViewDashboardOutline,
+} from '@mdi/js';
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
@@ -13,6 +19,7 @@ const live = useLiveStore();
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', icon: mdiViewDashboardOutline, exact: true },
+  { to: '/nodes', key: 'nav.nodes', icon: mdiServer, exact: false },
   { to: '/storage', key: 'nav.storage', icon: mdiHarddisk, exact: false },
   { to: '/jobs', key: 'nav.jobs', icon: mdiCalendarClock, exact: false },
   { to: '/settings', key: 'nav.settings', icon: mdiBellOutline, exact: false },
@@ -56,7 +63,8 @@ const hubDown = computed(() => live.connection !== 'live');
       <slot />
     </main>
 
-    <!-- Mobile: the topbar nav collapses into a floating glass dock. -->
+    <!-- Mobile: the topbar nav collapses into a floating glass dock.
+         Icons only; the label lives in aria/title. -->
     <nav class="dock" :aria-label="t('nav.dashboard')">
       <RouterLink
         v-for="item in NAV"
@@ -65,9 +73,10 @@ const hubDown = computed(() => live.connection !== 'live');
         class="dock-link"
         :exact-active-class="item.exact ? 'active' : ''"
         :active-class="item.exact ? '' : 'active'"
+        :aria-label="t(item.key)"
+        :title="t(item.key)"
       >
-        <BfIcon :path="item.icon" :size="19" />
-        <span class="dock-label">{{ t(item.key) }}</span>
+        <BfIcon :path="item.icon" :size="21" />
       </RouterLink>
     </nav>
   </div>
@@ -187,11 +196,10 @@ const hubDown = computed(() => live.connection !== 'live');
   }
   .dock-link {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.12rem;
-    min-width: 4rem;
-    padding: 0.4rem 0.6rem;
+    justify-content: center;
+    width: 2.9rem;
+    height: 2.9rem;
     border-radius: var(--bf-radius-pill);
     text-decoration: none;
     color: var(--bf-ink-muted);
@@ -202,12 +210,6 @@ const hubDown = computed(() => live.connection !== 'live');
   .dock-link.active {
     color: var(--bf-brand);
     background: var(--bf-brand-tint);
-  }
-  .dock-label {
-    font-size: 0.58rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
   }
 }
 </style>

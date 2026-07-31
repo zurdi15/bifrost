@@ -38,7 +38,12 @@ const label = computed(() =>
 </script>
 
 <template>
-  <BfChip :tone="tone" mono>
+  <!-- Healthy is the norm: live collapses to a plain dot (label on hover).
+       Anything else deserves words. -->
+  <span v-if="live.connection === 'live'" class="live-dot" :title="label">
+    <span class="sr-only">{{ label }}</span>
+  </span>
+  <BfChip v-else :tone="tone" mono>
     <span class="dot" aria-hidden="true" />
     {{ label }}
   </BfChip>
@@ -50,5 +55,20 @@ const label = computed(() =>
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bf-status-up);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--bf-status-up) 60%, transparent);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

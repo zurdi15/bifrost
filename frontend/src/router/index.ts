@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+    { path: '/nodes', name: 'nodes', component: () => import('@/views/NodesView.vue') },
     {
       path: '/nodes/:uuid',
       name: 'node-detail',
