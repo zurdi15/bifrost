@@ -9,11 +9,7 @@ services:
       # openssl rand -hex 32
       BIFROST_ENROLL_TOKEN: change-me
       # false → new agents wait as 'pending' until approved in the UI
-      BIFROST_AUTO_APPROVE: "false"
+      BIFROST_AUTO_APPROVE: "true"
     volumes:
-      - bifrost-data:/data
-      # Declarative bookmarks (see examples/bookmarks.yml):
-      #- ./bookmarks.yml:/data/bookmarks.yml:ro
-
-volumes:
-  bifrost-data:
+      - ./data:/data
+      - ./data/bookmarks.yml:/data/bookmarks.yml:ro
