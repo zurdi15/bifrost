@@ -105,6 +105,50 @@ def test_container_event_recorded_and_snapshot_grouped(client):
         assert snap["containers"][node_uuid][0]["name"] == "romm"
 
 
+def test_service_override_meta(client):
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        node_uuid = json.loads(ws.receive_text())["node_uuid"]
+        ws.send_text(containers_full_frame(1, [ROMM, PIHOLE]))
+        wait_for(lambda: client.get("/api/v1/containers").json() or None)
+
+        # Overrides win over labels; unset fields inherit them.
+        updated = client.put(
+            f"/api/v1/containers/{node_uuid}/romm/meta",
+            json={"name": "RomM", "icon": "🎮", "url": "https://romm.zurdi.dev"},
+        ).json()
+        assert updated["meta"]["name"] == "RomM"
+        assert updated["meta"]["icon"] == "🎮"
+        assert updated["meta"]["url"] == "https://romm.zurdi.dev"
+        assert updated["meta"]["group"] == "media"  # inherited from labels
+
+        # hide=false un-hides a label-hidden service.
+        updated = client.put(
+            f"/api/v1/containers/{node_uuid}/pihole/meta", json={"hide": False}
+        ).json()
+        assert updated["meta"]["hide"] is False
+
+        # Overrides are keyed by name: they survive container recreation.
+        recreated = dict(ROMM, container_id="zzz999")
+        ws.send_text(containers_full_frame(2, [recreated, PIHOLE]))
+        containers = wait_for(
+            lambda: (
+                lambda cs: cs if any(c["id"] == "zzz999" for c in cs) else None
+            )(client.get("/api/v1/containers").json())
+        )
+        romm = next(c for c in containers if c["name"] == "romm")
+        assert romm["meta"]["name"] == "RomM"
+
+        # An all-empty body clears the override back to label meta.
+        cleared = client.put(
+            f"/api/v1/containers/{node_uuid}/romm/meta",
+            json={"name": "", "icon": "", "url": ""},
+        ).json()
+        assert cleared["meta"] == {"url": "https://romm.example", "group": "media", "hide": False}
+
+    assert client.put("/api/v1/containers/nope/romm/meta", json={}).status_code == 404
+
+
 def test_containers_filter_by_node(client):
     with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
         ws.send_text(hello_frame())

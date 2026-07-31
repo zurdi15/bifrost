@@ -43,6 +43,18 @@
     "title": "Services",
     "count": "{running}/{total} running"
   },
+  "service": {
+    "edit": "customize",
+    "name": "custom name",
+    "icon": "icon (emoji or image URL)",
+    "url": "link URL",
+    "group": "group",
+    "hide": "hide from dashboard",
+    "save": "save",
+    "cancel": "cancel",
+    "hidden": "hidden",
+    "showHidden": "{count} hidden"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "storage": "Storage",

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ingest import protocol as proto
-from app.models import Container, Disk, FsMount, now_ts
+from app.models import Container, Disk, FsMount, ServiceOverride, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
 META_KEYS = ("icon", "url", "group", "hide")
@@ -21,7 +21,38 @@ def extract_bifrost_meta(labels: dict[str, str]) -> dict:
     return meta
 
 
-def serialize_container(container: Container, node_uuid: str, node_name: str) -> dict:
+def merge_override(meta: dict, override: ServiceOverride | None) -> dict:
+    """UI-set overrides win over bifrost.* label meta; NULL fields inherit."""
+    if override is None:
+        return meta
+    for key, value in (
+        ("name", override.name),
+        ("icon", override.icon),
+        ("url", override.url),
+        ("group", override.group_name),
+    ):
+        if value:
+            meta[key] = value
+    if override.hide is not None:
+        meta["hide"] = override.hide
+    return meta
+
+
+def overrides_for_node(session: Session, node_id: int) -> dict[str, ServiceOverride]:
+    return {
+        o.container_name: o
+        for o in session.scalars(
+            select(ServiceOverride).where(ServiceOverride.node_id == node_id)
+        )
+    }
+
+
+def serialize_container(
+    container: Container,
+    node_uuid: str,
+    node_name: str,
+    override: ServiceOverride | None = None,
+) -> dict:
     return {
         "id": container.container_id,
         "name": container.name,
@@ -29,7 +60,7 @@ def serialize_container(container: Container, node_uuid: str, node_name: str) ->
         "state": container.state,
         "health": container.health,
         "ports": json.loads(container.ports_json or "[]"),
-        "meta": json.loads(container.bifrost_meta_json or "{}"),
+        "meta": merge_override(json.loads(container.bifrost_meta_json or "{}"), override),
         "started_at": container.started_at,
         "updated_at": container.updated_at,
         "node_uuid": node_uuid,
@@ -73,7 +104,8 @@ def list_node_containers(
     rows = session.scalars(
         select(Container).where(Container.node_id == node_id).order_by(Container.name)
     ).all()
-    return [serialize_container(c, node_uuid, node_name) for c in rows]
+    overrides = overrides_for_node(session, node_id)
+    return [serialize_container(c, node_uuid, node_name, overrides.get(c.name)) for c in rows]
 
 
 def serialize_mount(mount: FsMount) -> dict:

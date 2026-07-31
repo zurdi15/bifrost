@@ -59,6 +59,24 @@ class Container(Base):
     updated_at: Mapped[int] = mapped_column(default=now_ts)
 
 
+class ServiceOverride(Base):
+    """User-set display metadata for a container, keyed by name (not id) so it
+    survives container recreation. Fields override bifrost.* label meta; NULL
+    means inherit."""
+
+    __tablename__ = "service_overrides"
+    __table_args__ = (UniqueConstraint("node_id", "container_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    container_name: Mapped[str]
+    name: Mapped[str | None]
+    icon: Mapped[str | None]
+    url: Mapped[str | None]
+    group_name: Mapped[str | None]
+    hide: Mapped[bool | None]
+
+
 class FsMount(Base):
     __tablename__ = "fs_mounts"
     __table_args__ = (UniqueConstraint("node_id", "mountpoint"),)

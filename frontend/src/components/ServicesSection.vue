@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { mdiEyeOffOutline } from '@mdi/js';
 
 import ContainerCard from '@/components/ContainerCard.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
+import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useLiveStore } from '@/stores/live';
 
 const { t } = useI18n();
 const live = useLiveStore();
 
 const nodeFilter = ref<string | null>(null);
+const showHidden = ref(false);
 
 const filtered = computed(() =>
-  live.containerList.filter((c) => !nodeFilter.value || c.node_uuid === nodeFilter.value),
+  [...live.containerList, ...(showHidden.value ? live.hiddenContainers : [])].filter(
+    (c) => !nodeFilter.value || c.node_uuid === nodeFilter.value,
+  ),
 );
 const runningCount = computed(
   () => live.containerList.filter((c) => c.state === 'running').length,
@@ -40,13 +45,26 @@ function toggleNode(uuid: string): void {
 </script>
 
 <template>
-  <section v-if="live.containerList.length > 0" class="services">
+  <section
+    v-if="live.containerList.length > 0 || live.hiddenContainers.length > 0"
+    class="services"
+  >
     <header class="section-head">
       <h2 class="title">{{ t('services.title') }}</h2>
       <BfChip mono>
         {{ t('services.count', { running: runningCount, total: live.containerList.length }) }}
       </BfChip>
       <span class="filters">
+        <button
+          v-if="live.hiddenContainers.length > 0"
+          class="filter"
+          :class="{ active: showHidden }"
+          type="button"
+          @click="showHidden = !showHidden"
+        >
+          <BfIcon :path="mdiEyeOffOutline" :size="12" />
+          {{ t('service.showHidden', { count: live.hiddenContainers.length }) }}
+        </button>
         <button
           v-for="node in nodesWithContainers"
           :key="node.uuid"
@@ -67,6 +85,7 @@ function toggleNode(uuid: string): void {
           v-for="(container, i) in list"
           :key="container.node_uuid + container.id"
           :container="container"
+          :class="{ dimmed: container.meta.hide }"
           :style="{ '--i': gi + i }"
         />
       </div>
@@ -98,7 +117,13 @@ function toggleNode(uuid: string): void {
   gap: 0.35rem;
   margin-left: auto;
 }
+.dimmed {
+  opacity: 0.55;
+}
 .filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font: inherit;
   font-size: 0.72rem;
   padding: 0.15rem 0.6rem;

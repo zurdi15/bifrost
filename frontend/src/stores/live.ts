@@ -39,6 +39,12 @@ export const useLiveStore = defineStore('live', () => {
           a.name.localeCompare(b.name),
       ),
   );
+  const hiddenContainers = computed(() =>
+    [...containers.values()]
+      .flat()
+      .filter((c) => c.meta.hide)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  );
 
   async function snapshot(): Promise<void> {
     const snap = await api.snapshot();
@@ -129,6 +135,7 @@ export const useLiveStore = defineStore('live', () => {
     disks,
     nodeList,
     containerList,
+    hiddenContainers,
     upCount,
     downNodes,
     lastSeq,

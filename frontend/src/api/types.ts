@@ -30,6 +30,8 @@ export interface NodeInfo {
 }
 
 export interface ContainerMeta {
+  /** Custom display name (UI override; the container keeps its real name). */
+  name?: string;
   icon?: string;
   url?: string;
   group?: string;

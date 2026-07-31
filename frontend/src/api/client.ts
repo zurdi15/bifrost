@@ -1,4 +1,4 @@
-import type { FsMount, MetricsResponse, NodeInfo, Resolution, Snapshot } from './types';
+import type { ContainerInfo, FsMount, MetricsResponse, NodeInfo, Resolution, Snapshot } from './types';
 
 const BASE = '/api/v1';
 
@@ -26,4 +26,13 @@ export const api = {
     return request<MetricsResponse>(`/metrics?${params}`);
   },
   nodeFs: (uuid: string) => request<FsMount[]>(`/nodes/${uuid}/fs`),
+  putServiceMeta: (
+    nodeUuid: string,
+    containerName: string,
+    body: { name?: string; icon?: string; url?: string; group?: string; hide?: boolean },
+  ) =>
+    request<ContainerInfo>(
+      `/containers/${encodeURIComponent(nodeUuid)}/${encodeURIComponent(containerName)}/meta`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
 };

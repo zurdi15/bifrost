@@ -43,6 +43,18 @@
     "title": "Servicios",
     "count": "{running}/{total} activos"
   },
+  "service": {
+    "edit": "personalizar",
+    "name": "nombre personalizado",
+    "icon": "icono (emoji o URL de imagen)",
+    "url": "URL del enlace",
+    "group": "grupo",
+    "hide": "ocultar del dashboard",
+    "save": "guardar",
+    "cancel": "cancelar",
+    "hidden": "oculto",
+    "showHidden": "{count} ocultos"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "storage": "Almacenamiento",
