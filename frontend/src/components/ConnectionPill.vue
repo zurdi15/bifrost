@@ -40,7 +40,7 @@ const label = computed(() =>
 <template>
   <!-- Healthy is the norm: live collapses to a plain dot (label on hover).
        Anything else deserves words. -->
-  <span v-if="live.connection === 'live'" class="live-dot" :title="label">
+  <span v-if="live.connection === 'live'" class="live-dot bf-tip-bl" :data-bf-tip="label">
     <span class="sr-only">{{ label }}</span>
   </span>
   <BfChip v-else :tone="tone" mono>

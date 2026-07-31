@@ -53,6 +53,10 @@ const shortImage = computed(() => {
   return image.split('/').pop()?.split('@')[0] ?? image;
 });
 
+const stateLabel = computed(() =>
+  props.container.health === 'unhealthy' ? 'unhealthy' : (props.container.state ?? 'unknown'),
+);
+
 const displayName = computed(() => props.container.meta.name || props.container.name);
 const iconIsImage = computed(() => /^(https?:\/\/|\/)/.test(props.container.meta.icon ?? ''));
 
@@ -123,6 +127,10 @@ async function save(): Promise<void> {
       </form>
 
       <template v-else>
+        <!-- The dot IS the state — top-right, details on hover. -->
+        <span class="dot-wrap bf-tip-bl" :data-bf-tip="stateLabel">
+          <BfStatusDot :status="status" :desync-id="container.id" :size="9" />
+        </span>
         <!-- k8s services take their meta from labels/annotations, not UI edits. -->
         <button
           v-if="container.source !== 'k8s'"
@@ -133,8 +141,7 @@ async function save(): Promise<void> {
         >
           <BfIcon :path="mdiPencil" :size="12" />
         </button>
-        <header class="head">
-          <BfStatusDot :status="status" :desync-id="container.id" :size="8" />
+        <div class="head">
           <span v-if="container.meta.icon" class="icon">
             <img v-if="iconIsImage" :src="container.meta.icon" alt="" loading="lazy" />
             <template v-else>{{ container.meta.icon }}</template>
@@ -142,16 +149,17 @@ async function save(): Promise<void> {
           <span v-else-if="autoIcon && !autoIconBroken" class="icon">
             <img :src="autoIcon" alt="" loading="lazy" @error="autoIconBroken = true" />
           </span>
-          <span class="name" :title="container.name">{{ displayName }}</span>
-          <BfChip v-if="container.meta.hide" tone="unknown">{{ t('service.hidden') }}</BfChip>
-          <BfIcon v-if="container.meta.url" :path="mdiOpenInNew" :size="13" class="ext" />
-        </header>
-        <p class="image bf-metric" :title="container.image ?? ''">{{ shortImage }}</p>
+          <div class="id">
+            <span class="name" :title="container.name">
+              {{ displayName }}
+              <BfIcon v-if="container.meta.url" :path="mdiOpenInNew" :size="12" class="ext" />
+            </span>
+            <p class="image bf-metric" :title="container.image ?? ''">{{ shortImage }}</p>
+          </div>
+        </div>
         <footer class="foot">
-          <BfChip :tone="tone">
-            {{ container.health === 'unhealthy' ? 'unhealthy' : container.state }}
-          </BfChip>
           <span class="node">{{ container.node_name }}</span>
+          <BfChip v-if="container.meta.hide" tone="unknown">{{ t('service.hidden') }}</BfChip>
         </footer>
       </template>
     </BfCard>
@@ -169,45 +177,70 @@ async function save(): Promise<void> {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.75rem 0.85rem;
+  gap: 0.55rem;
+  padding: 0.8rem 0.85rem;
+}
+/* Lift the hovered card above its siblings so the tooltip never hides. */
+.container-card:hover {
+  z-index: 5;
+}
+.dot-wrap {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.7rem;
+  display: inline-flex;
 }
 .head {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   min-width: 0;
+  /* keep clear of the corner dot */
+  padding-right: 1.1rem;
 }
+/* The icon is the face of the card. */
 .icon {
   flex: none;
   display: inline-flex;
   align-items: center;
-  font-size: 0.95rem;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font-size: 1.5rem;
   line-height: 1;
 }
 .icon img {
-  width: 18px;
-  height: 18px;
+  width: 34px;
+  height: 34px;
   max-width: 100%;
   object-fit: contain;
   border-radius: var(--bf-radius-ctl);
 }
+.id {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
 .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: var(--bf-ink-strong);
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .ext {
+  flex: none;
   color: var(--bf-ink-faint);
 }
 .image {
   margin: 0;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--bf-ink-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -218,6 +251,7 @@ async function save(): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  min-height: 1rem;
 }
 .node {
   font-size: 0.68rem;
@@ -226,8 +260,8 @@ async function save(): Promise<void> {
 /* Customize affordance: revealed on hover, always visible on touch. */
 .edit {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  bottom: 0.5rem;
+  right: 0.5rem;
   z-index: 2;
   display: inline-flex;
   align-items: center;

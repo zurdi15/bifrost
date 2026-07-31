@@ -20,6 +20,7 @@ def node_to_dict(node: Node, registry: AgentRegistry, checks: list | None = None
         "name": node.name,
         "kind": node.kind,
         "status": node.status,
+        "url": node.url,
         "os": node.os,
         "arch": node.arch,
         "agent_version": node.agent_version,
@@ -139,6 +140,7 @@ def create_endpoint(
 
 class NodePatch(BaseModel):
     name: str | None = None
+    url: str | None = None
     approve: bool | None = None
     labels: dict[str, str] | None = None
 
@@ -150,6 +152,8 @@ def patch_node(
     node = _get_node(session, uuid)
     if patch.name is not None:
         node.name = patch.name
+    if patch.url is not None:
+        node.url = patch.url.strip() or None  # empty string clears
     if patch.labels is not None:
         node.labels_json = json.dumps(patch.labels)
     if patch.approve and node.status == "pending":

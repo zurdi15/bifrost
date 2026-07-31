@@ -17,6 +17,7 @@ function node(overrides: Partial<NodeInfo>): NodeInfo {
     name: 'mimir',
     kind: 'agent',
     status: 'online',
+    url: null,
     os: 'linux',
     arch: 'arm64',
     agent_version: '0.1.0',

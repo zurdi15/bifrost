@@ -25,7 +25,7 @@ export const api = {
   snapshot: () => request<Snapshot>('/snapshot'),
   nodes: () => request<NodeInfo[]>('/nodes'),
   node: (uuid: string) => request<NodeInfo>(`/nodes/${uuid}`),
-  patchNode: (uuid: string, body: { name?: string; approve?: boolean }) =>
+  patchNode: (uuid: string, body: { name?: string; url?: string; approve?: boolean }) =>
     request<NodeInfo>(`/nodes/${uuid}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteNode: (uuid: string) => request<void>(`/nodes/${uuid}`, { method: 'DELETE' }),
   metrics: (node: string, names: string[], fromTs: number, toTs?: number, res: Resolution = 'auto') => {

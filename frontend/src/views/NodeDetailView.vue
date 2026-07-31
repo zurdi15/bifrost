@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
 import { api } from '@/api/client';
-import { mdiArrowLeft } from '@mdi/js';
+import { mdiArrowLeft, mdiOpenInNew, mdiPencil } from '@mdi/js';
 import NodeFilesystems from '@/components/NodeFilesystems.vue';
 import NodeHistory from '@/components/NodeHistory.vue';
+import BfButton from '@/lib/primitives/BfButton.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
@@ -50,6 +51,27 @@ const panels = computed(() => [
   { metric: 'temp.cpu', label: t('metric.temp'), color: 'var(--bf-metric-temp)', max: undefined },
 ]);
 
+// Node URL (a NAS dashboard, HAOS…) editable right from the hero.
+const editingUrl = ref(false);
+const urlDraft = ref('');
+const savingUrl = ref(false);
+
+function openUrlEditor(): void {
+  urlDraft.value = node.value?.url ?? '';
+  editingUrl.value = true;
+}
+
+async function saveUrl(): Promise<void> {
+  savingUrl.value = true;
+  try {
+    await api.patchNode(uuid.value, { url: urlDraft.value });
+    await live.snapshot();
+    editingUrl.value = false;
+  } finally {
+    savingUrl.value = false;
+  }
+}
+
 // Seed sparkline rings with the last hour so history shows immediately;
 // live WS frames keep appending afterwards.
 onMounted(async () => {
@@ -69,7 +91,7 @@ onMounted(async () => {
 
 <template>
   <section v-if="node">
-    <RouterLink to="/" class="back">
+    <RouterLink to="/nodes" class="back">
       <BfIcon :path="mdiArrowLeft" :size="15" />
       {{ t('detail.back') }}
     </RouterLink>
@@ -84,6 +106,40 @@ onMounted(async () => {
         <template v-if="node.os">{{ node.os }} · </template>
         <template v-if="node.arch">{{ node.arch }} · </template>
         ↑ {{ formatUptime(node.boot_ts) }}
+      </span>
+
+      <span class="url-zone">
+        <template v-if="!editingUrl">
+          <a
+            v-if="node.url"
+            :href="node.url"
+            target="_blank"
+            rel="noreferrer"
+            class="node-url bf-metric"
+          >
+            {{ node.url }}
+            <BfIcon :path="mdiOpenInNew" :size="12" />
+          </a>
+          <button
+            class="url-edit"
+            type="button"
+            :data-bf-tip="t('detail.setUrl')"
+            :aria-label="t('detail.setUrl')"
+            @click="openUrlEditor"
+          >
+            <BfIcon :path="mdiPencil" :size="12" />
+          </button>
+        </template>
+        <form v-else class="url-form" @submit.prevent="saveUrl" @keydown.esc="editingUrl = false">
+          <input
+            v-model="urlDraft"
+            class="url-field bf-metric"
+            :placeholder="t('detail.urlPlaceholder')"
+          />
+          <BfButton size="sm" variant="primary" :disabled="savingUrl">
+            {{ t('service.save') }}
+          </BfButton>
+        </form>
       </span>
     </header>
 
@@ -216,6 +272,63 @@ onMounted(async () => {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--bf-ink-strong);
+}
+.url-zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.node-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--bf-ink-secondary);
+  text-decoration: none;
+}
+.node-url:hover {
+  color: var(--bf-brand);
+}
+.url-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-ctl);
+  background: var(--bf-surface-raised);
+  color: var(--bf-ink-secondary);
+  cursor: pointer;
+  transition:
+    color var(--bf-dur-150),
+    border-color var(--bf-dur-150);
+}
+.url-edit:hover {
+  color: var(--bf-ink);
+  border-color: var(--bf-line-hover);
+}
+.url-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.url-field {
+  font: inherit;
+  font-size: 0.78rem;
+  min-width: 16rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--bf-surface-sunken);
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-ctl);
+  color: var(--bf-ink);
+  transition: border-color var(--bf-dur-150);
+}
+.url-field:focus {
+  border-color: var(--bf-brand);
+  outline: none;
 }
 .meta {
   color: var(--bf-ink-muted);

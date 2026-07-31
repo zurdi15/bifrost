@@ -102,10 +102,11 @@ const hubDown = computed(() => live.connection !== 'live');
   filter: saturate(0.15) brightness(0.7);
   transition: filter var(--bf-dur-500);
 }
+/* Wordmark left, nav dead-center, status right. */
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 0.9rem 1.5rem;
 }
 .wordmark {
@@ -122,8 +123,6 @@ const hubDown = computed(() => live.connection !== 'live');
 .nav {
   display: flex;
   gap: 0.3rem;
-  margin-left: 1.5rem;
-  margin-right: auto;
 }
 .nav-link {
   padding: 0.3rem 0.75rem;
@@ -147,6 +146,7 @@ const hubDown = computed(() => live.connection !== 'live');
 .right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.9rem;
 }
 .clock {
@@ -169,8 +169,7 @@ const hubDown = computed(() => live.connection !== 'live');
 @media (max-width: 720px) {
   .topbar {
     padding: 0.75rem 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    grid-template-columns: auto 1fr;
   }
   .nav {
     display: none;

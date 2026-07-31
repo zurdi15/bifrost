@@ -18,6 +18,7 @@ function fakeNode(uuid: string, overrides: Partial<NodeInfo> = {}): NodeInfo {
     name: uuid,
     kind: 'agent',
     status: 'online',
+    url: null,
     os: 'linux',
     arch: 'amd64',
     agent_version: '0.1.0',

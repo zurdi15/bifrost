@@ -10,6 +10,9 @@ import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
 
+// embedded: rendered under the dashboard tabs, which already label it.
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+
 const { t } = useI18n();
 const icons = useIconStore();
 const live = useLiveStore();
@@ -110,7 +113,7 @@ async function remove(): Promise<void> {
 <template>
   <section v-if="loaded" class="bookmarks">
     <header class="section-head">
-      <h2 class="title">{{ t('bookmarks.title') }}</h2>
+      <h2 v-if="!embedded" class="title">{{ t('bookmarks.title') }}</h2>
       <span class="head-actions">
         <BfButton
           size="sm"
@@ -193,7 +196,7 @@ async function remove(): Promise<void> {
 
 <style scoped>
 .bookmarks {
-  margin-top: 2rem;
+  margin-top: 0;
 }
 .section-head {
   display: flex;

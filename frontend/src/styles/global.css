@@ -67,3 +67,59 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--bf-line-strong) transparent;
 }
+
+/* ── tooltips ────────────────────────────────────────────────────────────────
+   CSS-only, styled once for the whole app: put the text in data-bf-tip.
+   Default opens above, centered; .bf-tip-bottom opens below, centered;
+   .bf-tip-bl opens below, right-aligned (for things at a top-right corner). */
+[data-bf-tip] {
+  position: relative;
+}
+[data-bf-tip]::after {
+  content: attr(data-bf-tip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  translate: -50% 4px;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--bf-line-strong);
+  border-radius: var(--bf-radius-ctl);
+  background: var(--bf-surface-raised);
+  box-shadow: var(--bf-shadow-lift);
+  color: var(--bf-ink);
+  font-family: var(--bf-font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 40;
+  transition:
+    opacity var(--bf-dur-150),
+    translate var(--bf-dur-150);
+}
+[data-bf-tip]:hover::after,
+[data-bf-tip]:focus-visible::after {
+  opacity: 1;
+  translate: -50% 0;
+}
+.bf-tip-bottom::after,
+.bf-tip-bl::after {
+  bottom: auto;
+  top: calc(100% + 7px);
+  translate: -50% -4px;
+}
+.bf-tip-bl::after {
+  left: auto;
+  right: 0;
+  translate: 0 -4px;
+}
+.bf-tip-bottom:hover::after,
+.bf-tip-bottom:focus-visible::after {
+  translate: -50% 0;
+}
+.bf-tip-bl:hover::after,
+.bf-tip-bl:focus-visible::after {
+  translate: 0 0;
+}

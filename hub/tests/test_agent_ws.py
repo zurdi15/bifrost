@@ -45,6 +45,23 @@ def test_name_follows_hostname_until_renamed(client):
         assert client.get("/api/v1/nodes").json()[0]["name"] == "puerta"
 
 
+def test_node_url_patch(client):
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        ws.receive_text()
+        node = client.get("/api/v1/nodes").json()[0]
+        assert node["url"] is None
+
+        patched = client.patch(
+            f"/api/v1/nodes/{node['uuid']}", json={"url": "https://nas.example:5443"}
+        ).json()
+        assert patched["url"] == "https://nas.example:5443"
+
+        # Empty string clears it.
+        patched = client.patch(f"/api/v1/nodes/{node['uuid']}", json={"url": ""}).json()
+        assert patched["url"] is None
+
+
 def test_wrong_token_rejected(client):
     with pytest.raises(WebSocketDisconnect), client.websocket_connect(
         "/api/ws/agent", headers=agent_headers(token="wrong")

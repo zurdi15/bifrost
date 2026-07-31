@@ -6,7 +6,8 @@
     "empty": "No nodes yet — deploy an agent and it will appear here.",
     "lastSeen": "last seen",
     "uptime": "uptime",
-    "approve": "approve"
+    "approve": "approve",
+    "openUrl": "open dashboard"
   },
   "status": {
     "online": "online",
@@ -37,11 +38,14 @@
     "history": "History",
     "filesystems": "Filesystems",
     "stale": "stale",
-    "noHistory": "No history yet — it accumulates as agents report."
+    "noHistory": "No history yet — it accumulates as agents report.",
+    "setUrl": "set dashboard URL",
+    "urlPlaceholder": "https://nas.example:5443"
   },
   "services": {
     "title": "Services",
-    "count": "{running}/{total} running"
+    "count": "{running}/{total} running",
+    "empty": "No services yet — mount the Docker socket on an agent or connect a cluster."
   },
   "service": {
     "edit": "customize",

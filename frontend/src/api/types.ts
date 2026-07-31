@@ -19,6 +19,8 @@ export interface NodeInfo {
   name: string;
   kind: 'agent' | 'endpoint';
   status: string;
+  /** Optional link to the node's own UI (NAS dashboard, HAOS, …). */
+  url: string | null;
   os: string | null;
   arch: string | null;
   agent_version: string | null;

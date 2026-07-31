@@ -8,6 +8,9 @@ import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useLiveStore } from '@/stores/live';
 
+// embedded: rendered under the dashboard tabs, which already label it.
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+
 const { t } = useI18n();
 const live = useLiveStore();
 
@@ -52,11 +55,11 @@ function toggleNode(uuid: string): void {
 
 <template>
   <section
-    v-if="live.containerList.length > 0 || live.hiddenContainers.length > 0"
+    v-if="embedded || live.containerList.length > 0 || live.hiddenContainers.length > 0"
     class="services"
   >
     <header class="section-head">
-      <h2 class="title">{{ t('services.title') }}</h2>
+      <h2 v-if="!embedded" class="title">{{ t('services.title') }}</h2>
       <BfChip mono>
         {{ t('services.count', { running: runningCount, total: live.containerList.length }) }}
       </BfChip>
@@ -83,6 +86,13 @@ function toggleNode(uuid: string): void {
         </button>
       </span>
     </header>
+
+    <p
+      v-if="live.containerList.length === 0 && live.hiddenContainers.length === 0"
+      class="empty"
+    >
+      {{ t('services.empty') }}
+    </p>
 
     <div v-for="([group, list], gi) in groups" :key="group || '_'" class="group">
       <h3 v-if="group" class="group-title">{{ group }}</h3>
@@ -125,6 +135,10 @@ function toggleNode(uuid: string): void {
 }
 .dimmed {
   opacity: 0.55;
+}
+.empty {
+  color: var(--bf-ink-muted);
+  font-size: 0.85rem;
 }
 /* Breathing room between a group and the next (incl. the ungrouped tail). */
 .group + .group {

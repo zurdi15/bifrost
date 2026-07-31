@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
+import { mdiOpenInNew } from '@mdi/js';
 
 import { api } from '@/api/client';
 import type { NodeInfo } from '@/api/types';
 import BfButton from '@/lib/primitives/BfButton.vue';
+import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import BfGauge from '@/lib/data/BfGauge.vue';
@@ -24,6 +25,14 @@ const metrics = useMetricsStore();
 const live = useLiveStore();
 
 const approving = ref(false);
+
+// The card lives inside a RouterLink, so nested <a> is out: stop the
+// navigation and open the node's own UI in a new tab.
+function openUrl(eventArg: Event): void {
+  eventArg.preventDefault();
+  eventArg.stopPropagation();
+  if (props.node.url) window.open(props.node.url, '_blank', 'noopener');
+}
 
 // The card lives inside a RouterLink: stop the navigation, approve, refresh.
 async function approve(eventArg: Event): Promise<void> {
@@ -73,8 +82,20 @@ watch(
     <BfSweep :tone="sweep ?? 'down'" :active="sweep !== null" />
 
     <header class="head">
-      <BfStatusDot :status="node.status" :desync-id="node.uuid" />
+      <span class="bf-tip-bottom" :data-bf-tip="t(`status.${node.status}`)">
+        <BfStatusDot :status="node.status" :desync-id="node.uuid" />
+      </span>
       <span class="name">{{ node.name }}</span>
+      <button
+        v-if="node.url"
+        class="link-out bf-tip-bl"
+        type="button"
+        :data-bf-tip="t('nodes.openUrl')"
+        :aria-label="t('nodes.openUrl')"
+        @click="openUrl"
+      >
+        <BfIcon :path="mdiOpenInNew" :size="13" />
+      </button>
       <BfChip v-if="isDown" tone="down" mono class="bf-pop-in">
         {{ t(`status.${node.status}`) }}
       </BfChip>
@@ -181,6 +202,26 @@ watch(
   color: var(--bf-ink-muted);
   display: flex;
   gap: 0.35em;
+}
+.link-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-ctl);
+  background: var(--bf-surface-raised);
+  color: var(--bf-ink-secondary);
+  cursor: pointer;
+  transition:
+    color var(--bf-dur-150),
+    border-color var(--bf-dur-150);
+}
+.link-out:hover {
+  color: var(--bf-brand);
+  border-color: var(--bf-brand);
 }
 .spark {
   overflow: hidden;

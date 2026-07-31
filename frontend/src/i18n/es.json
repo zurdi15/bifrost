@@ -6,7 +6,8 @@
     "empty": "Sin nodos todavía — despliega un agente y aparecerá aquí.",
     "lastSeen": "visto por última vez",
     "uptime": "uptime",
-    "approve": "aprobar"
+    "approve": "aprobar",
+    "openUrl": "abrir dashboard"
   },
   "status": {
     "online": "activo",
@@ -37,11 +38,14 @@
     "history": "Histórico",
     "filesystems": "Sistemas de ficheros",
     "stale": "colgado",
-    "noHistory": "Aún no hay histórico — se acumula según reportan los agentes."
+    "noHistory": "Aún no hay histórico — se acumula según reportan los agentes.",
+    "setUrl": "editar URL del dashboard",
+    "urlPlaceholder": "https://nas.ejemplo:5443"
   },
   "services": {
     "title": "Servicios",
-    "count": "{running}/{total} activos"
+    "count": "{running}/{total} activos",
+    "empty": "Sin servicios todavía — monta el socket de Docker en un agente o conecta un cluster."
   },
   "service": {
     "edit": "personalizar",
