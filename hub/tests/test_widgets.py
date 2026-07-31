@@ -72,3 +72,59 @@ def test_weather_proxy_cached(client, monkeypatch):
     # Second request within the TTL never reaches Open-Meteo.
     client.get(f"/api/v1/widgets/{widget['id']}/data")
     assert calls["n"] == 1
+
+
+def test_homeassistant_widget(client, monkeypatch):
+    from app.widgets import homeassistant
+    from app.widgets.base import REGISTRY
+
+    def fake_ha(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer llat-token"
+        assert str(request.url).endswith("/api/states")
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "entity_id": "sensor.processor_use",
+                    "state": "17",
+                    "attributes": {
+                        "friendly_name": "Processor use",
+                        "unit_of_measurement": "%",
+                    },
+                },
+                {"entity_id": "light.salon", "state": "on", "attributes": {}},
+                {"entity_id": "sensor.unrelated", "state": "1", "attributes": {}},
+            ],
+        )
+
+    monkeypatch.setattr(homeassistant, "transport", httpx.MockTransport(fake_ha))
+    REGISTRY["homeassistant"]._cache.clear()
+
+    widget = client.post(
+        "/api/v1/widgets",
+        json={
+            "type": "homeassistant",
+            "config": {
+                "base_url": "http://haos:8123",
+                "token": "llat-token",
+                "entities": ["sensor.processor_use", "light.salon", "sensor.gone"],
+            },
+        },
+    ).json()
+
+    data = client.get(f"/api/v1/widgets/{widget['id']}/data").json()["data"]
+    assert data["configured"] is True
+    by_id = {e["entity_id"]: e for e in data["entities"]}
+    assert by_id["sensor.processor_use"]["state"] == "17"
+    assert by_id["sensor.processor_use"]["unit"] == "%"
+    assert by_id["sensor.processor_use"]["name"] == "Processor use"
+    assert by_id["light.salon"]["state"] == "on"
+    assert by_id["sensor.gone"]["state"] is None  # requested but missing in HA
+    assert "sensor.unrelated" not in by_id  # only requested entities
+
+    # Without token/entities: explicitly unconfigured, no HA call.
+    unconfigured = client.post(
+        "/api/v1/widgets", json={"type": "homeassistant", "config": {}}
+    ).json()
+    data = client.get(f"/api/v1/widgets/{unconfigured['id']}/data").json()["data"]
+    assert data == {"configured": False, "entities": []}

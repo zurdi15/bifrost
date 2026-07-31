@@ -110,6 +110,10 @@
     "clock": "clock",
     "weather": "weather",
     "weatherError": "weather unavailable",
+    "ha": "home assistant",
+    "haError": "home assistant unreachable",
+    "haNotConfigured": "set the HA URL, a long-lived token and some entity ids in the widget config",
+    "haEntities": "entity ids (one per line)",
     "save": "save",
     "left": "move left",
     "right": "move right"

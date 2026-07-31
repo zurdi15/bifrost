@@ -10,6 +10,7 @@ from app.models import Dashboard, Widget
 
 # Importing the package registers the built-in widget types.
 from app.widgets import clock as _clock  # noqa: F401
+from app.widgets import homeassistant as _homeassistant  # noqa: F401
 from app.widgets import weather as _weather  # noqa: F401
 from app.widgets.base import REGISTRY
 

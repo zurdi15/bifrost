@@ -25,14 +25,28 @@ All planned phases are built:
 - **F8 — Alerting**: EventBus-subscribing rules engine with per-subject cooldowns,
   ntfy + webhook notifiers, rules CRUD + test endpoint, Alerts view.
 
+## Shipped after the initial phases
+
+- Service customization from the UI (overrides) and via `bifrost.*` labels/annotations
+  in Docker **and** Kubernetes; auto-icons from the selfh.st index.
+- Kubernetes workloads as dashboard service cards (one per deployment, ingress-derived
+  URLs).
+- Bookmarks: UI CRUD + declarative `bookmarks.yml` ingestion with live re-sync.
+- Nodes page split from the dashboard (services/bookmarks/widgets tabs + ambient rail),
+  mobile glass dock, styled tooltips, node URLs.
+- Home Assistant widget (entities via long-lived token, hub-proxied and cached).
+
 ## Future ideas
 
 - Streaming Kubernetes watches (resourceVersion resume) instead of the 30s poll.
-- Home Assistant API widget (entities via long-lived token) and a HAOS add-on wrapping
-  the agent image ([haos.md](haos.md)).
+- HAOS add-on wrapping the agent image ([haos.md](haos.md)).
 - Per-container CPU/memory stats from the Docker stats API.
+- Metric-threshold alert rules (fs.used_pct > N, disk temperature) on top of the
+  event-driven ones; more notifiers (Telegram).
+- Endpoint latency history (checks already record it — chart it like node metrics).
 - Dashboard widgets for storage/backup summaries.
 - Light theme (`html.bf-light` redefinition — tokens are ready).
+- Events timeline view in the UI (the `events` table and API already exist).
 
 There is deliberately **no auth phase**: the dashboard is open by design; protection
 belongs to the network layer.
