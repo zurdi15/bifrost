@@ -61,5 +61,11 @@
     "noClusters": "Sin clusters de Kubernetes — se auto-registran cuando un agente detecta uno (o añade uno vía API).",
     "noCronjobs": "Aún no hay CronJobs en los clusters conectados.",
     "noRuns": "sin ejecuciones"
+  },
+  "endpoint": {
+    "add": "endpoint",
+    "name": "nombre (ej. haos)",
+    "save": "añadir",
+    "error": "no se pudo crear el endpoint"
   }
 }

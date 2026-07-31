@@ -15,6 +15,7 @@ from app.api import health, nodes
 from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
 from app.bus import EventBus
+from app.checks.runner import checks_runner
 from app.config import settings
 from app.db import init_engine
 from app.events import events_recorder
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
         tasks = [
             asyncio.create_task(events_recorder(app.state.bus), name="events-recorder"),
             asyncio.create_task(agent_ws.heartbeat_monitor(app.state), name="heartbeat-monitor"),
+            asyncio.create_task(checks_runner(app.state), name="checks-runner"),
         ]
         logger.info("bifrost hub up — data dir %s", settings.data_dir)
         try:

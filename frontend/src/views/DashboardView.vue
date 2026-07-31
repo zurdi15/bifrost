@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import EndpointForm from '@/components/EndpointForm.vue';
 import NodeCard from '@/components/NodeCard.vue';
 import ServicesSection from '@/components/ServicesSection.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
@@ -25,6 +26,7 @@ const downCount = computed(() => live.downNodes.length);
       <BfChip v-if="downCount > 0" tone="down" mono>
         {{ t('nodes.down', { count: downCount }) }}
       </BfChip>
+      <span class="head-actions"><EndpointForm /></span>
     </header>
 
     <!-- First load only: skeletons with the real card silhouette. -->
@@ -69,6 +71,10 @@ const downCount = computed(() => live.downNodes.length);
   align-items: center;
   gap: 0.75rem;
   margin: 1rem 0 1.1rem;
+  flex-wrap: wrap;
+}
+.head-actions {
+  margin-left: auto;
 }
 .title {
   margin: 0;

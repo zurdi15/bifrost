@@ -12,9 +12,10 @@ from app.ws.registry import AgentRegistry
 router = APIRouter()
 
 
-def node_to_dict(node: Node, registry: AgentRegistry) -> dict:
+def node_to_dict(node: Node, registry: AgentRegistry, checks: list | None = None) -> dict:
     conn = registry.get(node.uuid)
     return {
+        "checks": checks,
         "uuid": node.uuid,
         "name": node.name,
         "kind": node.kind,
@@ -32,11 +33,32 @@ def node_to_dict(node: Node, registry: AgentRegistry) -> dict:
     }
 
 
+def _checks_for(session: Session, node: Node) -> list | None:
+    if node.kind != "endpoint":
+        return None
+    from app.models import EndpointCheck
+
+    return [
+        {
+            "id": c.id,
+            "kind": c.check_kind,
+            "target": c.target,
+            "interval_s": c.interval_s,
+            "last_ok": c.last_ok,
+            "last_latency_ms": c.last_latency_ms,
+            "last_checked": c.last_checked,
+        }
+        for c in session.scalars(
+            select(EndpointCheck).where(EndpointCheck.node_id == node.id)
+        )
+    ]
+
+
 @router.get("/nodes")
 def list_nodes(request: Request, session: Session = Depends(get_session)) -> list[dict]:
     registry: AgentRegistry = request.app.state.agent_registry
     nodes = session.scalars(select(Node).order_by(Node.created_at)).all()
-    return [node_to_dict(n, registry) for n in nodes]
+    return [node_to_dict(n, registry, _checks_for(session, n)) for n in nodes]
 
 
 @router.get("/snapshot")
@@ -50,7 +72,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
     nodes = session.scalars(select(Node).order_by(Node.created_at)).all()
     return {
         "seq": request.app.state.bus.seq,
-        "nodes": [node_to_dict(n, registry) for n in nodes],
+        "nodes": [node_to_dict(n, registry, _checks_for(session, n)) for n in nodes],
         "containers": containers_by_node(session),
         "disks": disks_by_node(session),
     }
@@ -66,7 +88,51 @@ def _get_node(session: Session, uuid: str) -> Node:
 @router.get("/nodes/{uuid}")
 def get_node(uuid: str, request: Request, session: Session = Depends(get_session)) -> dict:
     registry: AgentRegistry = request.app.state.agent_registry
-    return node_to_dict(_get_node(session, uuid), registry)
+    node = _get_node(session, uuid)
+    return node_to_dict(node, registry, _checks_for(session, node))
+
+
+class EndpointCheckSpec(BaseModel):
+    kind: str  # 'ping' | 'http' | 'tcp'
+    target: str
+    interval_s: int = 30
+    timeout_s: int = 5
+    expect_status: int | None = None
+
+
+class EndpointCreate(BaseModel):
+    name: str
+    checks: list[EndpointCheckSpec]
+
+
+@router.post("/nodes/endpoints", status_code=201)
+def create_endpoint(
+    body: EndpointCreate, request: Request, session: Session = Depends(get_session)
+) -> dict:
+    from app.models import EndpointCheck
+
+    if not body.checks:
+        raise HTTPException(status_code=422, detail="at least one check required")
+    for check in body.checks:
+        if check.kind not in ("ping", "http", "tcp"):
+            raise HTTPException(status_code=422, detail=f"unknown check kind {check.kind}")
+    node = Node(name=body.name, kind="endpoint", fingerprint=None, status="new")
+    session.add(node)
+    session.flush()
+    for check in body.checks:
+        session.add(
+            EndpointCheck(
+                node_id=node.id,
+                check_kind=check.kind,
+                target=check.target,
+                interval_s=check.interval_s,
+                timeout_s=check.timeout_s,
+                expect_status=check.expect_status,
+            )
+        )
+    session.flush()
+    registry: AgentRegistry = request.app.state.agent_registry
+    return node_to_dict(node, registry, _checks_for(session, node))
 
 
 class NodePatch(BaseModel):

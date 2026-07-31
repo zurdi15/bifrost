@@ -65,7 +65,20 @@ watch(
       <span v-if="node.arch">· {{ node.arch }}</span>
     </p>
 
-    <div class="spark">
+    <!-- Agentless endpoints: checks instead of system metrics. -->
+    <ul v-if="node.kind === 'endpoint'" class="checks">
+      <li v-for="check in node.checks ?? []" :key="check.id" class="check">
+        <BfChip :tone="check.last_ok === null ? 'unknown' : check.last_ok ? 'up' : 'down'">
+          {{ check.kind }}
+        </BfChip>
+        <span class="target bf-metric">{{ check.target }}</span>
+        <span v-if="check.last_latency_ms !== null" class="latency bf-metric">
+          {{ check.last_latency_ms.toFixed(0) }} ms
+        </span>
+      </li>
+    </ul>
+
+    <div v-if="node.kind !== 'endpoint'" class="spark">
       <BfSparkline
         :points="cpuSeries"
         :width="200"
@@ -77,7 +90,7 @@ watch(
       />
     </div>
 
-    <div class="dim">
+    <div v-if="node.kind !== 'endpoint'" class="dim">
       <div class="gauges">
         <BfGauge
           v-if="cpu !== null"
@@ -186,5 +199,32 @@ watch(
   margin: 0;
   font-size: 0.75rem;
   color: var(--bf-status-down);
+}
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.target {
+  font-size: 0.72rem;
+  color: var(--bf-ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.latency {
+  font-size: 0.72rem;
+  color: var(--bf-ink-muted);
 }
 </style>

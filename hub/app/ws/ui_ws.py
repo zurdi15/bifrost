@@ -21,6 +21,7 @@ TOPIC_CATEGORY = {
     "node.status": "nodes",
     "fs.updated": "nodes",
     "disk.updated": "nodes",
+    "endpoint.status": "nodes",
     "containers.updated": "containers",
     "container.event": "containers",
     "k8s.cronjob.run": "k8s",

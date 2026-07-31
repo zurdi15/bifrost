@@ -3,7 +3,18 @@ export interface LiveSnapshot {
   samples: Record<string, number>;
 }
 
+export interface EndpointCheckInfo {
+  id: number;
+  kind: 'ping' | 'http' | 'tcp';
+  target: string;
+  interval_s: number;
+  last_ok: boolean | null;
+  last_latency_ms: number | null;
+  last_checked: number | null;
+}
+
 export interface NodeInfo {
+  checks?: EndpointCheckInfo[] | null;
   uuid: string;
   name: string;
   kind: 'agent' | 'endpoint';
