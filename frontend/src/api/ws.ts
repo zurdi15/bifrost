@@ -40,7 +40,7 @@ export class UiSocket {
 
     ws.onopen = () => {
       this.attempts = 0;
-      ws.send(JSON.stringify({ sub: ['metrics', 'nodes', 'containers', 'events'] }));
+      ws.send(JSON.stringify({ sub: ['metrics', 'nodes', 'containers', 'k8s', 'events'] }));
       this.handlers.onOpen();
     };
     ws.onmessage = (raw: MessageEvent<string>) => {

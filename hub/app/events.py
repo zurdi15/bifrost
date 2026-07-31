@@ -18,11 +18,14 @@ PERSISTED_TOPICS = {
     "k8s.cronjob.run": "info",
     "disk.updated": "info",
     "endpoint.status": "info",
+    "k8s.cluster.discovered": "info",
 }
 
 
 def _severity(topic: str, data: dict) -> str:
     if topic == "node.status" and data.get("status") in ("offline", "degraded"):
+        return "warning"
+    if topic == "k8s.cronjob.run" and not data.get("succeeded"):
         return "warning"
     if topic == "disk.updated" and any(
         d.get("smart_status") == "failed" for d in data.get("disks", [])

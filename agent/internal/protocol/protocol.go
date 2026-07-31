@@ -108,6 +108,16 @@ type Smart struct {
 	Disks []SmartDisk `json:"disks"`
 }
 
+type K8sDetected struct {
+	T           string `json:"t"`
+	Seq         uint64 `json:"seq"`
+	TS          int64  `json:"ts"`
+	Distro      string `json:"distro"`
+	Version     string `json:"version"`
+	APIEndpoint string `json:"api_endpoint"`
+	Kubeconfig  string `json:"kubeconfig"`
+}
+
 // Sequenced is any agent→hub data frame the transport numbers and buffers.
 type Sequenced interface{ SetSeq(seq uint64) }
 
@@ -116,6 +126,7 @@ func (m *Fs) SetSeq(seq uint64)             { m.Seq = seq }
 func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
 func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
 func (m *Smart) SetSeq(seq uint64)          { m.Seq = seq }
+func (m *K8sDetected) SetSeq(seq uint64)    { m.Seq = seq }
 
 func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []string) Hello {
 	return Hello{
@@ -155,6 +166,13 @@ func NewSmart(ts int64, disks []SmartDisk) *Smart {
 		disks = []SmartDisk{}
 	}
 	return &Smart{T: "smart", TS: ts, Disks: disks}
+}
+
+func NewK8sDetected(ts int64, distro, apiEndpoint, kubeconfig string) *K8sDetected {
+	return &K8sDetected{
+		T: "k8s_detected", TS: ts, Distro: distro,
+		APIEndpoint: apiEndpoint, Kubeconfig: kubeconfig,
+	}
 }
 
 func NewHeartbeat(seq uint64, ts int64) Heartbeat {

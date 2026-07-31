@@ -54,5 +54,12 @@
     "prefail": "pre-fail",
     "powerOn": "power on",
     "wear": "wear"
+  },
+  "jobs": {
+    "title": "Jobs",
+    "needsCreds": "needs credentials",
+    "noClusters": "No Kubernetes clusters — they auto-register when an agent detects one (or add one via the API).",
+    "noCronjobs": "No CronJobs in the connected clusters yet.",
+    "noRuns": "no runs yet"
   }
 }

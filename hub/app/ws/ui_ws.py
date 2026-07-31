@@ -23,6 +23,8 @@ TOPIC_CATEGORY = {
     "disk.updated": "nodes",
     "containers.updated": "containers",
     "container.event": "containers",
+    "k8s.cronjob.run": "k8s",
+    "k8s.cluster.discovered": "k8s",
 }
 
 
@@ -31,7 +33,7 @@ async def ui_ws(ws: WebSocket) -> None:
     bus: EventBus = ws.app.state.bus
     await ws.accept()
 
-    subscriptions: set[str] = {"metrics", "nodes", "containers", "events"}
+    subscriptions: set[str] = {"metrics", "nodes", "containers", "k8s", "events"}
     queue = bus.subscribe()
     last_metric_sent: dict[str, float] = {}
 

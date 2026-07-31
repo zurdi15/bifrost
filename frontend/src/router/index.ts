@@ -11,6 +11,7 @@ const router = createRouter({
       component: () => import('@/views/NodeDetailView.vue'),
     },
     { path: '/storage', name: 'storage', component: () => import('@/views/StorageView.vue') },
+    { path: '/jobs', name: 'jobs', component: () => import('@/views/JobsView.vue') },
   ],
 });
 

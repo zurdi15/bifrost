@@ -32,6 +32,9 @@ const hubDown = computed(() => live.connection !== 'live');
         <RouterLink to="/storage" class="nav-link" active-class="active">
           {{ t('nav.storage') }}
         </RouterLink>
+        <RouterLink to="/jobs" class="nav-link" active-class="active">
+          {{ t('nav.jobs') }}
+        </RouterLink>
       </nav>
       <div class="right">
         <ConnectionPill />

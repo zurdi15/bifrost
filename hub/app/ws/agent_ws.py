@@ -246,6 +246,31 @@ async def agent_ws(ws: WebSocket) -> None:
                         "image": msg.container.image,
                     },
                 )
+            elif isinstance(msg, proto.K8sDetected):
+                conn.last_seq = msg.seq
+                from app.k8s.discovery import register_discovered_cluster
+
+                node_address = ws.client.host if ws.client else ""
+                with session_scope() as session:
+                    db_node = session.get(Node, node_id)
+                    if db_node is not None:
+                        cluster, created = register_discovered_cluster(
+                            session, db_node, msg, node_address
+                        )
+                        cluster_info = {
+                            "id": cluster.id,
+                            "name": cluster.name,
+                            "distro": msg.distro,
+                            "node": node_uuid,
+                            "created": created,
+                        }
+                    else:
+                        cluster_info = None
+                if cluster_info:
+                    bus.publish("k8s.cluster.discovered", cluster_info)
+                    manager = getattr(ws.app.state, "k8s_manager", None)
+                    if manager is not None:
+                        manager.request_refresh()
             else:
                 # fs / containers / smart / k8s_detected land in later phases;
                 # advance seq so resume never replays them at us forever.

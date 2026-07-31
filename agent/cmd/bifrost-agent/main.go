@@ -14,6 +14,7 @@ import (
 
 	"github.com/zurdi15/bifrost/agent/internal/collectors/dockermon"
 	fscol "github.com/zurdi15/bifrost/agent/internal/collectors/fs"
+	"github.com/zurdi15/bifrost/agent/internal/collectors/k8sdetect"
 	smartcol "github.com/zurdi15/bifrost/agent/internal/collectors/smart"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/system"
 	"github.com/zurdi15/bifrost/agent/internal/config"
@@ -89,6 +90,7 @@ func main() {
 	if smartAvailable {
 		go smartLoop(ctx, client, smart, &smartIntervalSecs)
 	}
+	go k8sDetectLoop(ctx, client)
 
 	slog.Info("bifrost-agent starting",
 		"version", version, "node", cfg.NodeName, "hub", cfg.HubURL,
@@ -129,6 +131,31 @@ func fsLoop(ctx context.Context, client *transport.Client, intervalSecs *atomic.
 		if mounts := collector.Collect(ctx); len(mounts) > 0 {
 			send(client, protocol.NewFs(time.Now().Unix(), mounts))
 		}
+	}
+}
+
+// k8sDetectLoop reports clusters found on the host: once at start and on
+// any change (rechecked every 10 minutes — k3s might get installed later).
+func k8sDetectLoop(ctx context.Context, client *transport.Client) {
+	hostRoot := os.Getenv("HOST_ROOT")
+	lastHash := ""
+	check := func() {
+		detection := k8sdetect.Detect(hostRoot)
+		if detection == nil || detection.Hash == lastHash {
+			return
+		}
+		lastHash = detection.Hash
+		slog.Info("kubernetes detected on host", "distro", detection.Distro)
+		send(client, detection.Message(time.Now().Unix()))
+	}
+	check()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Minute):
+		}
+		check()
 	}
 }
 

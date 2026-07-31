@@ -12,11 +12,13 @@ from app.api import containers as containers_api
 from app.api import disks as disks_api
 from app.api import events as events_api
 from app.api import health, nodes
+from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
 from app.bus import EventBus
 from app.config import settings
 from app.db import init_engine
 from app.events import events_recorder
+from app.k8s.watcher import K8sManager
 from app.metrics.store import MetricsStore
 from app.ws import agent_ws, ui_ws
 from app.ws.registry import AgentRegistry
@@ -55,6 +57,9 @@ def create_app() -> FastAPI:
         )
         await app.state.metrics.start()
 
+        app.state.k8s_manager = K8sManager(app.state.bus)
+        await app.state.k8s_manager.start()
+
         tasks = [
             asyncio.create_task(events_recorder(app.state.bus), name="events-recorder"),
             asyncio.create_task(agent_ws.heartbeat_monitor(app.state), name="heartbeat-monitor"),
@@ -68,6 +73,7 @@ def create_app() -> FastAPI:
             for task in tasks:
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
+            await app.state.k8s_manager.stop()
             await app.state.metrics.stop()
 
     app = FastAPI(title="bifrost-hub", lifespan=lifespan)
@@ -77,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(nodes.router, prefix=api_prefix)
     app.include_router(containers_api.router, prefix=api_prefix)
     app.include_router(disks_api.router, prefix=api_prefix)
+    app.include_router(k8s_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)

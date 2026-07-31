@@ -14,6 +14,8 @@ export const useLiveStore = defineStore('live', () => {
   const fs = reactive(new Map<string, FsMount[]>());
   const disks = reactive(new Map<string, DiskInfo[]>());
   const lastSeq = ref(0);
+  // Bumped on any k8s.* event so views can refetch their REST data.
+  const k8sVersion = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
   const metrics = useMetricsStore();
@@ -78,6 +80,8 @@ export const useLiveStore = defineStore('live', () => {
       containers.set(event.data.uuid as string, event.data.containers as ContainerInfo[]);
     } else if (event.topic === 'disk.updated') {
       disks.set(event.data.uuid as string, event.data.disks as DiskInfo[]);
+    } else if (event.topic.startsWith('k8s.')) {
+      k8sVersion.value += 1;
     } else if (event.topic === 'fs.updated') {
       fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
@@ -128,6 +132,7 @@ export const useLiveStore = defineStore('live', () => {
     upCount,
     downNodes,
     lastSeq,
+    k8sVersion,
     connect,
     disconnect,
     applyEvent,

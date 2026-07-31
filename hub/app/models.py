@@ -103,6 +103,7 @@ class K8sCluster(Base):
     )
     auth_mode: Mapped[str] = mapped_column(default="token")  # 'kubeconfig' | 'token'
     kubeconfig_path: Mapped[str | None]
+    kubeconfig_content: Mapped[str | None]  # discovered clusters (agent-shipped)
     api_url: Mapped[str | None]
     token: Mapped[str | None]
     ca_pem: Mapped[str | None]
