@@ -1,0 +1,29 @@
+services:
+  bifrost-agent:
+    image: ghcr.io/zurdi15/bifrost-agent:latest
+    container_name: bifrost-agent
+    restart: unless-stopped
+    # Host process/uptime visibility
+    pid: host
+    environment:
+      BIFROST_AGENT_HUB_URL: http://hub.example:8000
+      BIFROST_AGENT_ENROLL_TOKEN: change-me
+      #BIFROST_AGENT_NODE_NAME: my-nas
+      HOST_PROC: /host/proc
+      HOST_SYS: /host/sys
+      HOST_ROOT: /host/rootfs
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/rootfs:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      # Docker autodiscovery (phase 2):
+      #- /var/run/docker.sock:/var/run/docker.sock:ro
+
+    # SMART disk health (phase 4) — uncomment and list your disks:
+    #cap_add: [SYS_RAWIO, SYS_ADMIN]
+    #devices:
+    #  - /dev/sda
+    #  - /dev/nvme0
+    # On NAS UIs where mapping devices is painful, the blunt fallback is:
+    #privileged: true

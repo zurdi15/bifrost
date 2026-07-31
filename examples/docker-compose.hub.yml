@@ -1,0 +1,17 @@
+services:
+  bifrost-hub:
+    image: ghcr.io/zurdi15/bifrost-hub:latest
+    container_name: bifrost-hub
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # openssl rand -hex 32
+      BIFROST_ENROLL_TOKEN: change-me
+      # false → new agents wait as 'pending' until approved in the UI
+      BIFROST_AUTO_APPROVE: "true"
+    volumes:
+      - bifrost-data:/data
+
+volumes:
+  bifrost-data:

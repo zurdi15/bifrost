@@ -1,0 +1,151 @@
+/* Bifrost motion — CSS only, compositor-friendly (transform/opacity + SVG
+   stroke). Entrances animate; exits are instant. The single reduced-motion
+   guard for the whole app lives at the bottom of this file. */
+
+/* Sweep angle for the perimeter light on node down/recovery. */
+@property --bf-sweep-a {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ── entrances ── */
+
+@keyframes bf-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bf-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Staggered card entrance: set --i inline from v-for (capped at 8 steps). */
+.bf-stagger > * {
+  animation: bf-rise-in var(--bf-dur-300) var(--bf-ease-spring) both;
+  animation-delay: calc(min(var(--i, 0), 8) * var(--bf-stagger-step));
+}
+
+.bf-rise-in {
+  animation: bf-rise-in var(--bf-dur-300) var(--bf-ease-spring) both;
+}
+
+.bf-pop-in {
+  animation: bf-pop-in var(--bf-dur-300) var(--bf-ease-bounce) both;
+}
+
+/* ── liveness ── */
+
+/* Heartbeat pulse ring. Desync via --bf-desync (negative ms delay per node)
+   so nodes never beat in unison — the section breathes. */
+@keyframes bf-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Perimeter light sweep (node down: status color · recovery: aurora). */
+@keyframes bf-sweep {
+  from {
+    --bf-sweep-a: 0deg;
+    opacity: 1;
+  }
+  to {
+    --bf-sweep-a: 360deg;
+    opacity: 0;
+  }
+}
+
+/* ── loading ── */
+
+/* Skeleton shimmer: diagonal sweep, transform-only. */
+@keyframes bf-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+/* Sparkline draw-in via pathLength=1 dash. */
+@keyframes bf-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── ambient ── */
+
+/* The aurora hairline drifts slowly; it is also the hub-connection indicator
+   (frozen + desaturated when the socket is down — handled by the component). */
+@keyframes bf-aurora-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 300% 50%;
+  }
+}
+
+/* Vue <Transition name="bf-view"> fallback for browsers without the
+   View Transitions API. */
+.bf-view-enter-active {
+  animation: bf-rise-in var(--bf-dur-300) var(--bf-ease-spring) both;
+}
+.bf-view-leave-active {
+  animation: none;
+  transition: none;
+}
+.bf-view-leave-to {
+  opacity: 0;
+}
+
+/* ── the one reduced-motion guard ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* Keep plain fades so state changes remain perceivable. */
+  .bf-rise-in,
+  .bf-stagger > * {
+    animation-name: bf-fade-in !important;
+  }
+}

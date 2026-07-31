@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Go
+agent/bin/
+agent/dist/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/storybook-static/
+frontend/src/styles/tokens.css
+
+# Data
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Env
+.env
+.env.*
+!env.template
+
+# Editors / OS
+.DS_Store
+.idea/
+*.swp
+
+# Trunk
+.trunk/logs/
+.trunk/out/
+.trunk/actions/
+.trunk/notifications/
+.trunk/tools/
+.trunk/plugins/

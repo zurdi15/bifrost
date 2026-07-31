@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+frontend/dist
+frontend/storybook-static
+frontend/src/styles/tokens.css
+agent/bin
+data
+*.db
+*.db-wal
+*.db-shm
+.trunk

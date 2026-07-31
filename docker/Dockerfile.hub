@@ -1,0 +1,34 @@
+# bifrost-hub — FastAPI + SQLite + the built SPA. Multi-arch (amd64/arm64):
+# the SPA builds on the build platform (no QEMU penalty), Python deps install
+# natively on the target.
+
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.13-slim AS runtime
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1 \
+    BIFROST_DATA_DIR=/data
+WORKDIR /app
+
+COPY hub/pyproject.toml hub/uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY hub/alembic.ini ./
+COPY hub/alembic ./alembic
+COPY hub/app ./app
+COPY --from=frontend /build/dist ./static
+
+VOLUME /data
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD ["/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8000"]

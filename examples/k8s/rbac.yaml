@@ -1,0 +1,53 @@
+# Read-only access for Bifrost's Kubernetes watcher (phase 5).
+# Apply, then create a token for the hub:
+#   kubectl -n bifrost get secret bifrost-viewer-token -o jsonpath='{.data.token}' | base64 -d
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bifrost
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bifrost-viewer
+  namespace: bifrost
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bifrost-viewer-token
+  namespace: bifrost
+  annotations:
+    kubernetes.io/service-account.name: bifrost-viewer
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bifrost-viewer
+rules:
+  - apiGroups: [""]
+    resources: [nodes, namespaces, pods, services, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, statefulsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bifrost-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bifrost-viewer
+subjects:
+  - kind: ServiceAccount
+    name: bifrost-viewer
+    namespace: bifrost
