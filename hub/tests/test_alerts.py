@@ -110,6 +110,32 @@ def test_engine_severity_filter(client, monkeypatch):
     asyncio.run(scenario())
 
 
+def test_cooldown_on_freshly_booted_host(client, monkeypatch):
+    """Regression: time.monotonic() is seconds since boot on Linux. Right
+    after boot its value is smaller than the cooldown window, and a 0.0
+    'never sent' sentinel made the engine mute every alert until uptime
+    exceeded cooldown_s. Caught by CI runners, which always boot fresh."""
+    sent = []
+    monkeypatch.setattr(
+        alerts, "transport",
+        httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200))[1]),
+    )
+    # 40s of uptime, rule cooldown 300s.
+    monkeypatch.setattr(alerts.time, "monotonic", lambda: 40.0)
+    client.post(
+        "/api/v1/alert-rules",
+        json={"name": "boot", "kind": "node.status", "notifier": "webhook",
+              "target": "https://hooks.example/boot", "cooldown_s": 300},
+    )
+    engine = alerts.AlertEngine()
+
+    async def scenario():
+        await engine.handle(make_event("node.status", {"uuid": "n1", "status": "offline"}))
+        assert len(sent) == 1  # first-ever alert must never be suppressed
+
+    asyncio.run(scenario())
+
+
 def test_rule_test_endpoint(client, monkeypatch):
     monkeypatch.setattr(
         alerts, "transport", httpx.MockTransport(lambda r: httpx.Response(200))

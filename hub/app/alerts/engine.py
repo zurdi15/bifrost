@@ -96,7 +96,11 @@ def _subject(event: Event) -> str:
 
 class AlertEngine:
     def __init__(self) -> None:
-        self._last_sent: dict[tuple[int, str, str], float] = {}
+        # None-sentinel matters: time.monotonic() is seconds since boot on
+        # Linux, so a freshly booted host has small values and a 0.0 sentinel
+        # would read as "sent moments ago", muting every alert for the first
+        # cooldown window after boot.
+        self._last_sent: dict[tuple[int, str, str], float | None] = {}
 
     def matching_rules(self, event: Event) -> list[AlertRule]:
         severity = _severity(event.topic, event.data)
@@ -114,8 +118,8 @@ class AlertEngine:
 
     def cooled_down(self, rule: AlertRule, event: Event) -> bool:
         key = (rule.id, event.topic, _subject(event))
-        last = self._last_sent.get(key, 0.0)
-        if time.monotonic() - last < rule.cooldown_s:
+        last = self._last_sent.get(key)
+        if last is not None and time.monotonic() - last < rule.cooldown_s:
             return False
         self._last_sent[key] = time.monotonic()
         return True
