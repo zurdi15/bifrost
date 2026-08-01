@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import SortableList from '@/components/SortableList.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
+import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 import { formatClock } from '@/utils/format';
 
@@ -39,9 +41,12 @@ interface JobRun {
 
 const { t } = useI18n();
 const live = useLiveStore();
+const layout = useLayoutStore();
 
 const clusters = ref<Cluster[]>([]);
 const cronjobs = ref<CronJob[]>([]);
+const cronjobId = (cronjob: CronJob): string => String(cronjob.id);
+const orderedCronjobs = computed(() => layout.apply('jobs', cronjobs.value, cronjobId));
 const runsByCronjob = ref(new Map<number, JobRun[]>());
 const loaded = ref(false);
 
@@ -112,10 +117,14 @@ function formatDuration(seconds: number | null): string {
     <p v-if="loaded && clusters.length === 0" class="empty">{{ t('jobs.noClusters') }}</p>
     <p v-else-if="loaded && cronjobs.length === 0" class="empty">{{ t('jobs.noCronjobs') }}</p>
 
-    <div class="list bf-stagger">
+    <SortableList
+      class="list bf-stagger"
+      :items="orderedCronjobs"
+      :id-of="cronjobId"
+      @reorder="(ids) => layout.setOrder('jobs', ids)"
+    >
+      <template #item="{ element: cronjob, index: i }">
       <BfCard
-        v-for="(cronjob, i) in cronjobs"
-        :key="cronjob.id"
         :padded="false"
         class="job"
         :style="{ '--i': i }"
@@ -168,7 +177,8 @@ function formatDuration(seconds: number | null): string {
           </ul>
         </details>
       </BfCard>
-    </div>
+      </template>
+    </SortableList>
   </section>
 </template>
 

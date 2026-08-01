@@ -4,15 +4,21 @@ import { useI18n } from 'vue-i18n';
 
 import EndpointForm from '@/components/EndpointForm.vue';
 import NodeCard from '@/components/NodeCard.vue';
+import SortableList from '@/components/SortableList.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfSkeleton from '@/lib/structural/BfSkeleton.vue';
+import type { NodeInfo } from '@/api/types';
+import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 
 const { t } = useI18n();
 const live = useLiveStore();
+const layout = useLayoutStore();
 
 const loading = computed(() => live.connection === 'connecting' && live.nodeList.length === 0);
 const downCount = computed(() => live.downNodes.length);
+const nodeId = (node: NodeInfo): string => node.uuid;
+const orderedNodes = computed(() => layout.apply('nodes', live.nodeList, nodeId));
 </script>
 
 <template>
@@ -48,17 +54,19 @@ const downCount = computed(() => live.downNodes.length);
       {{ t('nodes.empty') }}
     </p>
 
-    <div v-else class="grid bf-stagger">
-      <RouterLink
-        v-for="(node, i) in live.nodeList"
-        :key="node.uuid"
-        :to="`/nodes/${node.uuid}`"
-        class="card-link"
-        :style="{ '--i': i }"
-      >
-        <NodeCard :node="node" />
-      </RouterLink>
-    </div>
+    <SortableList
+      v-else
+      class="grid bf-stagger"
+      :items="orderedNodes"
+      :id-of="nodeId"
+      @reorder="(ids) => layout.setOrder('nodes', ids)"
+    >
+      <template #item="{ element: node, index: i }">
+        <RouterLink :to="`/nodes/${node.uuid}`" class="card-link" :style="{ '--i': i }">
+          <NodeCard :node="node" />
+        </RouterLink>
+      </template>
+    </SortableList>
   </section>
 </template>
 

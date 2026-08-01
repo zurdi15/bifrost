@@ -5,6 +5,7 @@ import { mdiPencil } from '@mdi/js';
 
 import { api } from '@/api/client';
 import type { BookmarkInfo } from '@/api/types';
+import SortableList from '@/components/SortableList.vue';
 import BfButton from '@/lib/primitives/BfButton.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useIconStore } from '@/stores/icons';
@@ -97,6 +98,32 @@ async function save(): Promise<void> {
   }
 }
 
+const bookmarkId = (bookmark: BookmarkInfo): string => String(bookmark.id);
+
+// Reorder within a group: UI bookmarks are renumbered globally after the
+// file-managed ones (whose order belongs to bookmarks.yml).
+async function reorderGroup(group: string, ids: string[]): Promise<void> {
+  const byId = new Map(bookmarks.value.map((b) => [String(b.id), b]));
+  const newGroupOrder = ids
+    .map((id) => byId.get(id))
+    .filter((b): b is BookmarkInfo => !!b);
+  const uiSequence = groups.value
+    .flatMap(([g, list]) => (g === group ? newGroupOrder : list))
+    .filter((b) => b.source !== 'file');
+  const base =
+    Math.max(0, ...bookmarks.value.filter((b) => b.source === 'file').map((b) => b.position)) + 1;
+  await Promise.all(
+    uiSequence
+      .map((bookmark, index) =>
+        bookmark.position === base + index
+          ? null
+          : api.patchBookmark(bookmark.id, { position: base + index }),
+      )
+      .filter(Boolean),
+  );
+  bookmarks.value = await api.bookmarks();
+}
+
 async function remove(): Promise<void> {
   if (!editing.value) return;
   busy.value = true;
@@ -158,10 +185,14 @@ async function remove(): Promise<void> {
 
     <div v-for="[group, list] in groups" :key="group || '_'" class="group">
       <h3 v-if="group" class="group-title">{{ group }}</h3>
-      <div class="grid bf-stagger">
+      <SortableList
+        class="grid bf-stagger"
+        :items="list"
+        :id-of="bookmarkId"
+        @reorder="(ids) => void reorderGroup(group, ids)"
+      >
+        <template #item="{ element: bookmark, index: i }">
         <a
-          v-for="(bookmark, i) in list"
-          :key="bookmark.id"
           :href="bookmark.url"
           target="_blank"
           rel="noreferrer"
@@ -189,7 +220,8 @@ async function remove(): Promise<void> {
             <BfIcon :path="mdiPencil" :size="11" />
           </button>
         </a>
-      </div>
+        </template>
+      </SortableList>
     </div>
   </section>
 </template>

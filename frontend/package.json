@@ -25,7 +25,8 @@
     "uplot": "^1.6.32",
     "vue": "^3.5.13",
     "vue-i18n": "^11.0.0",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.0",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@storybook/addon-a11y": "^10.0.0",

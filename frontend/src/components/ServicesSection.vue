@@ -4,8 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { mdiEyeOffOutline } from '@mdi/js';
 
 import ContainerCard from '@/components/ContainerCard.vue';
+import SortableList from '@/components/SortableList.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
+import type { ContainerInfo } from '@/api/types';
+import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 
 // embedded: rendered under the dashboard tabs, which already label it.
@@ -13,9 +16,14 @@ withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 
 const { t } = useI18n();
 const live = useLiveStore();
+const layout = useLayoutStore();
 
 const nodeFilter = ref<string | null>(null);
 const showHidden = ref(false);
+
+// Stable per-service id: names survive container recreation, ids don't.
+const serviceId = (container: ContainerInfo): string =>
+  `${container.node_uuid}:${container.name}`;
 
 const filtered = computed(() =>
   [...live.containerList, ...(showHidden.value ? live.hiddenContainers : [])].filter(
@@ -35,7 +43,8 @@ const sources = computed(() => {
   return [...seen.entries()].map(([uuid, name]) => ({ uuid, name }));
 });
 
-// Group headers via bifrost.group labels; ungrouped last.
+// Group headers via bifrost.group labels; ungrouped last. Each group is
+// drag-orderable in edit mode (persisted per group).
 const groups = computed(() => {
   const map = new Map<string, typeof filtered.value>();
   for (const container of filtered.value) {
@@ -43,9 +52,9 @@ const groups = computed(() => {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(container);
   }
-  return [...map.entries()].sort(([a], [b]) =>
-    a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
-  );
+  return [...map.entries()]
+    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+    .map(([group, list]) => [group, layout.apply(`svc:${group}`, list, serviceId)] as const);
 });
 
 function toggleNode(uuid: string): void {
@@ -96,15 +105,20 @@ function toggleNode(uuid: string): void {
 
     <div v-for="([group, list], gi) in groups" :key="group || '_'" class="group">
       <h3 v-if="group" class="group-title">{{ group }}</h3>
-      <div class="grid bf-stagger">
-        <ContainerCard
-          v-for="(container, i) in list"
-          :key="container.node_uuid + container.id"
-          :container="container"
-          :class="{ dimmed: container.meta.hide }"
-          :style="{ '--i': gi + i }"
-        />
-      </div>
+      <SortableList
+        class="grid bf-stagger"
+        :items="list"
+        :id-of="serviceId"
+        @reorder="(ids) => layout.setOrder(`svc:${group}`, ids)"
+      >
+        <template #item="{ element: container, index: i }">
+          <ContainerCard
+            :container="container"
+            :class="{ dimmed: container.meta.hide }"
+            :style="{ '--i': gi + i }"
+          />
+        </template>
+      </SortableList>
     </div>
   </section>
 </template>

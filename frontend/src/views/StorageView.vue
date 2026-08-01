@@ -2,21 +2,31 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import type { DiskInfo } from '@/api/types';
+import type { DiskInfo, NodeInfo } from '@/api/types';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import NodeFilesystems from '@/components/NodeFilesystems.vue';
+import SortableList from '@/components/SortableList.vue';
+import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 import { formatBytes } from '@/utils/format';
 
 const { t } = useI18n();
 const live = useLiveStore();
+const layout = useLayoutStore();
+
+const nodeId = (node: NodeInfo): string => node.uuid;
 
 // Every agent node belongs here: SMART disks when reported, filesystems
 // always. Filtering by disks alone made SD-card/no-SMART nodes vanish.
+// Shares the 'nodes' drag order with the Nodes page.
 const nodesWithStorage = computed(() =>
-  live.nodeList.filter(
-    (n) => n.kind === 'agent' || (live.disks.get(n.uuid) ?? []).length > 0,
+  layout.apply(
+    'nodes',
+    live.nodeList.filter(
+      (n) => n.kind === 'agent' || (live.disks.get(n.uuid) ?? []).length > 0,
+    ),
+    nodeId,
   ),
 );
 const totalDisks = computed(
@@ -55,10 +65,14 @@ function smartLabel(disk: DiskInfo): string {
 
     <p v-if="nodesWithStorage.length === 0" class="empty">{{ t('storage.empty') }}</p>
 
-    <div class="nodes bf-stagger">
+    <SortableList
+      class="nodes bf-stagger"
+      :items="nodesWithStorage"
+      :id-of="nodeId"
+      @reorder="(ids) => layout.setOrder('nodes', ids)"
+    >
+      <template #item="{ element: node, index: i }">
       <BfCard
-        v-for="(node, i) in nodesWithStorage"
-        :key="node.uuid"
         class="node-block"
         :style="{ '--i': i }"
       >
@@ -100,7 +114,8 @@ function smartLabel(disk: DiskInfo): string {
 
         <NodeFilesystems :uuid="node.uuid" class="fs" />
       </BfCard>
-    </div>
+      </template>
+    </SortableList>
   </section>
 </template>
 

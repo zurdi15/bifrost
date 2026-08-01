@@ -68,6 +68,14 @@ body {
   scrollbar-color: var(--bf-line-strong) transparent;
 }
 
+/* ── drag ordering (global edit mode) ─────────────────────────────────────── */
+.bf-sorting > * {
+  cursor: grab;
+}
+.bf-drag-ghost {
+  opacity: 0.35;
+}
+
 /* ── tooltips ────────────────────────────────────────────────────────────────
    CSS-only, styled once for the whole app: put the text in data-bf-tip.
    Default opens above, centered; .bf-tip-bottom opens below, centered;
