@@ -57,7 +57,10 @@ const hubDown = computed(() => live.connection !== 'live');
     <div class="hairline" :class="{ frozen: hubDown }" aria-hidden="true" />
 
     <header class="topbar">
-      <RouterLink to="/" class="wordmark">⌁ bifrost</RouterLink>
+      <RouterLink to="/" class="wordmark">
+        <img class="logo" src="/favicon.svg" alt="" width="22" height="22" />
+        <span class="wordmark-text">bifrost</span>
+      </RouterLink>
       <!-- Same language as the mobile dock: an icon cluster with a pill
            that glides to the active section. -->
       <nav class="nav" :style="{ '--i': activeIndex }">
@@ -143,10 +146,19 @@ const hubDown = computed(() => live.connection !== 'live');
   padding: 0.9rem 1.5rem;
 }
 .wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  text-decoration: none;
+}
+.logo {
+  display: block;
+}
+.wordmark-text {
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: 0.01em;
-  text-decoration: none;
   background: var(--bf-aurora);
   background-size: 300% 100%;
   -webkit-background-clip: text;
