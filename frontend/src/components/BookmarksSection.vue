@@ -10,6 +10,7 @@ import BfButton from '@/lib/primitives/BfButton.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
+import { useUiStore } from '@/stores/ui';
 
 // embedded: rendered under the dashboard tabs, which already label it.
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -17,6 +18,7 @@ withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const { t } = useI18n();
 const icons = useIconStore();
 const live = useLiveStore();
+const ui = useUiStore();
 
 const bookmarks = ref<BookmarkInfo[]>([]);
 const loaded = ref(false);
@@ -198,6 +200,7 @@ async function remove(): Promise<void> {
           rel="noreferrer"
           class="bookmark"
           :style="{ '--i': i }"
+          :data-bf-tip="bookmark.url"
         >
           <span v-if="iconOf(bookmark)" class="icon">
             <img
@@ -209,9 +212,10 @@ async function remove(): Promise<void> {
             <template v-else>{{ iconOf(bookmark) }}</template>
           </span>
           <span class="name">{{ bookmark.name }}</span>
-          <!-- File-managed bookmarks are edited in bookmarks.yml, not here. -->
+          <!-- File-managed bookmarks are edited in bookmarks.yml, not here,
+               and customization only surfaces in global edit mode. -->
           <button
-            v-if="bookmark.source !== 'file'"
+            v-if="ui.editing && bookmark.source !== 'file'"
             class="edit"
             type="button"
             :aria-label="t('bookmarks.edit')"
@@ -352,19 +356,7 @@ async function remove(): Promise<void> {
   background: var(--bf-surface-raised);
   color: var(--bf-ink-secondary);
   cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity var(--bf-dur-150),
-    color var(--bf-dur-150);
-}
-.bookmark:hover .edit,
-.edit:focus-visible {
-  opacity: 1;
-}
-@media (hover: none) {
-  .edit {
-    opacity: 1;
-  }
+  transition: color var(--bf-dur-150);
 }
 .edit:hover {
   color: var(--bf-ink);

@@ -12,6 +12,7 @@ import BfCard from '@/lib/structural/BfCard.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
+import { useUiStore } from '@/stores/ui';
 import { formatBytes } from '@/utils/format';
 
 const props = defineProps<{ container: ContainerInfo }>();
@@ -19,6 +20,7 @@ const props = defineProps<{ container: ContainerInfo }>();
 const { t } = useI18n();
 const live = useLiveStore();
 const icons = useIconStore();
+const ui = useUiStore();
 
 // Container state/health → the shared node-status visual language.
 const status = computed(() => {
@@ -151,9 +153,10 @@ async function save(): Promise<void> {
         <span class="dot-wrap bf-tip-bl" :data-bf-tip="stateLabel">
           <BfStatusDot :status="status" :desync-id="container.id" :size="9" />
         </span>
-        <!-- k8s services take their meta from labels/annotations, not UI edits. -->
+        <!-- k8s services take their meta from labels/annotations, not UI edits.
+             Customization is an edit-mode affordance, not everyday chrome. -->
         <button
-          v-if="container.source !== 'k8s'"
+          v-if="ui.editing && container.source !== 'k8s'"
           class="edit"
           type="button"
           :aria-label="t('service.edit')"
@@ -170,11 +173,13 @@ async function save(): Promise<void> {
             <img :src="autoIcon" alt="" loading="lazy" @error="autoIconBroken = true" />
           </span>
           <div class="id">
-            <span class="name" :title="container.name">
-              {{ displayName }}
+            <span class="name" :data-bf-tip="container.name">
+              <span class="name-text">{{ displayName }}</span>
               <BfIcon v-if="container.meta.url" :path="mdiOpenInNew" :size="12" class="ext" />
             </span>
-            <p class="image bf-metric" :title="container.image ?? ''">{{ shortImage }}</p>
+            <p class="image bf-metric" :data-bf-tip="container.image ?? undefined">
+              <span class="image-text">{{ shortImage }}</span>
+            </p>
           </div>
         </div>
         <footer class="foot">
@@ -251,6 +256,8 @@ async function save(): Promise<void> {
   flex-direction: column;
   gap: 0.1rem;
 }
+/* Truncation lives on the inner text spans: the outer elements carry the
+   styled tooltip (::after), which overflow:hidden would clip. */
 .name {
   display: inline-flex;
   align-items: center;
@@ -258,6 +265,10 @@ async function save(): Promise<void> {
   font-weight: 600;
   font-size: 0.9rem;
   color: var(--bf-ink-strong);
+  min-width: 0;
+  max-width: 100%;
+}
+.name-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,6 +282,9 @@ async function save(): Promise<void> {
   margin: 0;
   font-size: 0.66rem;
   color: var(--bf-ink-muted);
+}
+.image-text {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,7 +300,7 @@ async function save(): Promise<void> {
   font-size: 0.68rem;
   color: var(--bf-ink-faint);
 }
-/* Customize affordance: revealed on hover, always visible on touch. */
+/* Customize affordance: only rendered in global edit mode. */
 .edit {
   position: absolute;
   bottom: 0.5rem;
@@ -303,20 +317,9 @@ async function save(): Promise<void> {
   background: var(--bf-surface-raised);
   color: var(--bf-ink-secondary);
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity var(--bf-dur-150),
     color var(--bf-dur-150),
     border-color var(--bf-dur-150);
-}
-.container-card:hover .edit,
-.edit:focus-visible {
-  opacity: 1;
-}
-@media (hover: none) {
-  .edit {
-    opacity: 1;
-  }
 }
 .edit:hover {
   color: var(--bf-ink);
