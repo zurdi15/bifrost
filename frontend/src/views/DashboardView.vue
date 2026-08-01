@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AmbientSection from '@/components/AmbientSection.vue';
 import BookmarksSection from '@/components/BookmarksSection.vue';
 import ServicesSection from '@/components/ServicesSection.vue';
+import { useLayoutStore } from '@/stores/layout';
+import { useUiStore } from '@/stores/ui';
 
 const { t } = useI18n();
 const tab = ref<'services' | 'bookmarks'>('services');
+
+const ui = useUiStore();
+const layout = useLayoutStore();
+// No widgets → give services the full width. Edit mode always shows the
+// rail so widgets can be added in the first place.
+const showAside = computed(() => ui.editing || layout.ambient.length > 0);
 </script>
 
 <template>
   <!-- The dashboard is what you *use*: services, bookmarks, widgets.
        Infrastructure health lives in its own Nodes section. -->
-  <div class="dash">
+  <div class="dash" :class="{ 'with-aside': showAside }">
     <div class="main">
       <nav class="tabs" role="tablist">
         <button
@@ -40,7 +48,7 @@ const tab = ref<'services' | 'bookmarks'>('services');
       <BookmarksSection v-else embedded />
     </div>
 
-    <AmbientSection class="aside" />
+    <AmbientSection v-if="showAside" class="aside" />
   </div>
 </template>
 
@@ -81,7 +89,7 @@ const tab = ref<'services' | 'bookmarks'>('services');
   align-items: start;
 }
 @media (min-width: 1100px) {
-  .dash {
+  .dash.with-aside {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
   .dash > .aside {
