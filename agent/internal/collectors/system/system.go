@@ -19,8 +19,11 @@ import (
 )
 
 // CPU temperature sensor keys, in preference order. Covers Intel (coretemp),
-// AMD (k10temp) and Raspberry Pi (cpu_thermal) hardware.
-var cpuTempKeys = []string{"coretemp_package_id_0", "k10temp_tctl", "k10temp", "cpu_thermal", "coretemp_core_0", "soc_thermal"}
+// AMD (k10temp) and Raspberry Pi (cpu_thermal) hardware. acpitz (the generic
+// ACPI thermal zone) goes last: on stripped NAS kernels (e.g. TerraMaster TOS)
+// it is the only sensor exposed, and a coarse reading beats none — but any
+// real CPU sensor must win over it.
+var cpuTempKeys = []string{"coretemp_package_id_0", "k10temp_tctl", "k10temp", "cpu_thermal", "coretemp_core_0", "soc_thermal", "acpitz"}
 
 var nameSanitizer = regexp.MustCompile(`[^a-z0-9_.-]+`)
 

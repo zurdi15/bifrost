@@ -75,6 +75,48 @@ func TestCollectTempsSurvivesBrokenSensor(t *testing.T) {
 	}
 }
 
+// Regression: stripped NAS kernels (TerraMaster TOS, as seen on a real F2
+// unit) expose a single acpitz thermal zone and nothing else — no coretemp,
+// no k10temp. temp.cpu must fall back to it, but never shadow a real CPU
+// sensor when one exists.
+func TestCollectTempsAcpitzFallback(t *testing.T) {
+	writeTo := func(sys, path, content string) {
+		t.Helper()
+		full := filepath.Join(sys, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	collect := func(sys string) map[string]float64 {
+		t.Setenv("HOST_SYS", sys)
+		samples := map[string]float64{}
+		New().collectTemps(context.Background(), func(name string, value float64) {
+			samples[name] = value
+		})
+		return samples
+	}
+
+	acpitzOnly := t.TempDir()
+	writeTo(acpitzOnly, "class/hwmon/hwmon0/name", "acpitz\n")
+	writeTo(acpitzOnly, "class/hwmon/hwmon0/temp1_input", "27800\n")
+	if samples := collect(acpitzOnly); samples["temp.cpu"] != 27.8 {
+		t.Fatalf("want temp.cpu=27.8 from the acpitz fallback, got %v", samples)
+	}
+
+	withCoretemp := t.TempDir()
+	writeTo(withCoretemp, "class/hwmon/hwmon0/name", "acpitz\n")
+	writeTo(withCoretemp, "class/hwmon/hwmon0/temp1_input", "27800\n")
+	writeTo(withCoretemp, "class/hwmon/hwmon1/name", "coretemp\n")
+	writeTo(withCoretemp, "class/hwmon/hwmon1/temp1_label", "Package id 0\n")
+	writeTo(withCoretemp, "class/hwmon/hwmon1/temp1_input", "84000\n")
+	if samples := collect(withCoretemp); samples["temp.cpu"] != 84.0 {
+		t.Fatalf("want the real CPU sensor to win over acpitz, got %v", samples)
+	}
+}
+
 func TestCollectSmoke(t *testing.T) {
 	// Real collection against the running kernel: must produce at least the
 	// core CPU/memory metrics on any Linux box.
