@@ -12,6 +12,7 @@ import {
 } from '@mdi/js';
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
+import TopbarWeather from '@/components/TopbarWeather.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
@@ -91,6 +92,7 @@ const hubDown = computed(() => live.connection !== 'live');
         </button>
         <ConnectionPill />
         <span class="clock bf-metric">{{ clock }}</span>
+        <TopbarWeather />
       </div>
     </header>
 
