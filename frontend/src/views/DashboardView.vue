@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 
 import AmbientSection from '@/components/AmbientSection.vue';
 import BookmarksSection from '@/components/BookmarksSection.vue';
@@ -9,7 +10,15 @@ import { useLayoutStore } from '@/stores/layout';
 import { useUiStore } from '@/stores/ui';
 
 const { t } = useI18n();
-const tab = ref<'services' | 'bookmarks'>('services');
+const route = useRoute();
+const router = useRouter();
+
+// The active tab lives in the URL (/#bookmarks) so both are deep-linkable.
+const tab = computed<'services' | 'bookmarks'>({
+  get: () => (route.hash === '#bookmarks' ? 'bookmarks' : 'services'),
+  set: (value) =>
+    void router.replace({ hash: value === 'bookmarks' ? '#bookmarks' : '' }),
+});
 
 const ui = useUiStore();
 const layout = useLayoutStore();
