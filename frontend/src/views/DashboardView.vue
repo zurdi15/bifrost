@@ -7,6 +7,7 @@ import AmbientSection from '@/components/AmbientSection.vue';
 import BookmarksSection from '@/components/BookmarksSection.vue';
 import ServicesSection from '@/components/ServicesSection.vue';
 import { useLayoutStore } from '@/stores/layout';
+import { useLiveStore } from '@/stores/live';
 import { useUiStore } from '@/stores/ui';
 
 const { t } = useI18n();
@@ -22,6 +23,10 @@ const tab = computed<'services' | 'bookmarks'>({
 
 const ui = useUiStore();
 const layout = useLayoutStore();
+const live = useLiveStore();
+const runningCount = computed(
+  () => live.containerList.filter((c) => c.state === 'running').length,
+);
 // No widgets → give services the full width. Edit mode always shows the
 // rail so widgets can be added in the first place.
 const showAside = computed(() => ui.editing || layout.ambient.length > 0);
@@ -41,6 +46,9 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
           @click="tab = 'services'"
         >
           {{ t('services.title') }}
+          <span v-if="live.containerList.length > 0" class="tab-count bf-metric">
+            {{ runningCount }}/{{ live.containerList.length }}
+          </span>
         </button>
         <button
           class="tab"
@@ -90,6 +98,16 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
 .tab.active {
   color: var(--bf-brand);
   background: var(--bf-brand-tint);
+}
+.tab-count {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--bf-ink-muted);
+  margin-left: 0.15rem;
+}
+.tab.active .tab-count {
+  color: var(--bf-brand);
+  opacity: 0.75;
 }
 .dash {
   display: grid;

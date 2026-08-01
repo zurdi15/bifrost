@@ -5,7 +5,6 @@ import { mdiEyeOffOutline } from '@mdi/js';
 
 import ContainerCard from '@/components/ContainerCard.vue';
 import SortableList from '@/components/SortableList.vue';
-import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import type { ContainerInfo } from '@/api/types';
 import { useLayoutStore } from '@/stores/layout';
@@ -29,9 +28,6 @@ const filtered = computed(() =>
   [...live.containerList, ...(showHidden.value ? live.hiddenContainers : [])].filter(
     (c) => !nodeFilter.value || c.node_uuid === nodeFilter.value,
   ),
-);
-const runningCount = computed(
-  () => live.containerList.filter((c) => c.state === 'running').length,
 );
 // Filter chips come from the services themselves — Docker nodes and k8s
 // clusters alike.
@@ -69,9 +65,6 @@ function toggleNode(uuid: string): void {
   >
     <header class="section-head">
       <h2 v-if="!embedded" class="title">{{ t('services.title') }}</h2>
-      <BfChip mono>
-        {{ t('services.count', { running: runningCount, total: live.containerList.length }) }}
-      </BfChip>
       <span class="filters">
         <button
           v-if="live.hiddenContainers.length > 0"
