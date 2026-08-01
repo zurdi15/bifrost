@@ -12,6 +12,7 @@ import BfCard from '@/lib/structural/BfCard.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
+import { formatBytes } from '@/utils/format';
 
 const props = defineProps<{ container: ContainerInfo }>();
 
@@ -56,6 +57,21 @@ const shortImage = computed(() => {
 const stateLabel = computed(() =>
   props.container.health === 'unhealthy' ? 'unhealthy' : (props.container.state ?? 'unknown'),
 );
+
+// Live usage line: pct for docker, millicores for k8s, bytes for both.
+const usage = computed(() => {
+  const container = props.container;
+  const parts: string[] = [];
+  if (container.cpu_pct !== null && container.cpu_pct !== undefined) {
+    parts.push(`${container.cpu_pct.toFixed(1)}%`);
+  } else if (container.cpu_millis !== null && container.cpu_millis !== undefined) {
+    parts.push(`${container.cpu_millis}m`);
+  }
+  if (container.mem_bytes !== null && container.mem_bytes !== undefined) {
+    parts.push(formatBytes(container.mem_bytes, 0));
+  }
+  return parts.join(' · ');
+});
 
 const displayName = computed(() => props.container.meta.name || props.container.name);
 const iconIsImage = computed(() => /^(https?:\/\/|\/)/.test(props.container.meta.icon ?? ''));
@@ -106,7 +122,11 @@ async function save(): Promise<void> {
     rel="noreferrer"
     class="wrap"
   >
-    <BfCard :interactive="!editing && !!container.meta.url" class="container-card">
+    <BfCard
+      :interactive="!editing && !!container.meta.url"
+      class="container-card"
+      :class="{ 'is-down': status === 'offline' || status === 'disabled' }"
+    >
       <form v-if="editing" class="edit-form" @submit.prevent="save" @click.stop>
         <input v-model="form.name" class="field" :placeholder="t('service.name')" />
         <input v-model="form.icon" class="field bf-metric" :placeholder="t('service.icon')" />
@@ -158,8 +178,9 @@ async function save(): Promise<void> {
           </div>
         </div>
         <footer class="foot">
-          <span class="node">{{ container.node_name }}</span>
+          <span v-if="usage && status === 'online'" class="usage bf-metric">{{ usage }}</span>
           <BfChip v-if="container.meta.hide" tone="unknown">{{ t('service.hidden') }}</BfChip>
+          <span class="node">{{ container.node_name }}</span>
         </footer>
       </template>
     </BfCard>
@@ -183,6 +204,14 @@ async function save(): Promise<void> {
 /* Lift the hovered card above its siblings so the tooltip never hides. */
 .container-card:hover {
   z-index: 5;
+}
+/* Down services fade back; the dot stays at full strength. */
+.is-down > :not(.dot-wrap) {
+  opacity: 0.55;
+}
+.usage {
+  font-size: 0.68rem;
+  color: var(--bf-ink-muted);
 }
 .dot-wrap {
   position: absolute;

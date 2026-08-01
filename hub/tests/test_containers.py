@@ -149,6 +149,42 @@ def test_service_override_meta(client):
     assert client.put("/api/v1/containers/nope/romm/meta", json={}).status_code == 404
 
 
+def test_container_stats_applied(client):
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        ws.receive_text()
+        ws.send_text(containers_full_frame(1, [ROMM]))
+        wait_for(lambda: client.get("/api/v1/containers").json() or None)
+
+        ws.send_text(
+            json.dumps(
+                {
+                    "t": "container_stats",
+                    "seq": 2,
+                    "ts": int(time.time()),
+                    "stats": [
+                        {
+                            "container_id": "abc123",
+                            "cpu_pct": 12.5,
+                            "mem_bytes": 200 * 1024 * 1024,
+                            "mem_pct": 19.5,
+                        },
+                        # Unknown id (container recreated meanwhile): ignored.
+                        {"container_id": "gone", "cpu_pct": 1.0},
+                    ],
+                }
+            )
+        )
+        romm = wait_for(
+            lambda: (
+                lambda cs: cs[0] if cs and cs[0]["cpu_pct"] is not None else None
+            )(client.get("/api/v1/containers").json())
+        )
+        assert romm["cpu_pct"] == 12.5
+        assert romm["mem_bytes"] == 200 * 1024 * 1024
+        assert romm["mem_pct"] == 19.5
+
+
 def test_containers_filter_by_node(client):
     with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
         ws.send_text(hello_frame())

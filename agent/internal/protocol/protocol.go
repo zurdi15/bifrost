@@ -85,6 +85,22 @@ type ContainerEvent struct {
 	Container ContainerInfo `json:"container"`
 }
 
+// ContainerStat mirrors the hub's ContainerStat schema. CPUPct is nil on the
+// first sample: usage percentages need a delta between two reads.
+type ContainerStat struct {
+	ContainerID string   `json:"container_id"`
+	CPUPct      *float64 `json:"cpu_pct"`
+	MemBytes    *uint64  `json:"mem_bytes"`
+	MemPct      *float64 `json:"mem_pct"`
+}
+
+type ContainerStats struct {
+	T     string          `json:"t"`
+	Seq   uint64          `json:"seq"`
+	TS    int64           `json:"ts"`
+	Stats []ContainerStat `json:"stats"`
+}
+
 // SmartDisk mirrors the hub's SmartDisk schema.
 type SmartDisk struct {
 	Device         string   `json:"device"`
@@ -125,6 +141,7 @@ func (m *Metrics) SetSeq(seq uint64)        { m.Seq = seq }
 func (m *Fs) SetSeq(seq uint64)             { m.Seq = seq }
 func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
 func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
+func (m *ContainerStats) SetSeq(seq uint64) { m.Seq = seq }
 func (m *Smart) SetSeq(seq uint64)          { m.Seq = seq }
 func (m *K8sDetected) SetSeq(seq uint64)    { m.Seq = seq }
 
@@ -148,6 +165,10 @@ func NewFs(ts int64, mounts []FsMountInfo) *Fs {
 
 func NewContainersFull(ts int64, containers []ContainerInfo) *ContainersFull {
 	return &ContainersFull{T: "containers_full", TS: ts, Containers: containers}
+}
+
+func NewContainerStats(ts int64, stats []ContainerStat) *ContainerStats {
+	return &ContainerStats{T: "container_stats", TS: ts, Stats: stats}
 }
 
 func NewContainerEvent(ts int64, action string, container ContainerInfo) *ContainerEvent {

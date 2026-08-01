@@ -86,6 +86,7 @@ func main() {
 	go fsLoop(ctx, client, &fsIntervalSecs)
 	if dockerAvailable {
 		go dockerLoop(ctx, client, docker)
+		go statsLoop(ctx, client, docker)
 	}
 	if smartAvailable {
 		go smartLoop(ctx, client, smart, &smartIntervalSecs)
@@ -174,6 +175,26 @@ func smartLoop(
 		}
 		if disks := smart.Collect(ctx); len(disks) > 0 {
 			send(client, protocol.NewSmart(time.Now().Unix(), disks))
+		}
+	}
+}
+
+// statsLoop samples per-container cpu/mem every 15s. The first cycle only
+// primes the cpu deltas; frames are dropped when nothing is running.
+func statsLoop(ctx context.Context, client *transport.Client, docker *dockermon.Client) {
+	collector := dockermon.NewStatsCollector(docker)
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			stats, err := collector.Collect(ctx)
+			if err != nil || len(stats) == 0 {
+				continue
+			}
+			send(client, protocol.NewContainerStats(time.Now().Unix(), stats))
 		}
 	}
 }

@@ -102,6 +102,20 @@ class ContainerEvent(_Msg):
     container: ContainerInfo
 
 
+class ContainerStat(_Msg):
+    container_id: str
+    cpu_pct: float | None = None  # None on the first sample (needs a delta)
+    mem_bytes: int | None = None
+    mem_pct: float | None = None
+
+
+class ContainerStats(_Msg):
+    t: Literal["container_stats"]
+    seq: int
+    ts: int
+    stats: list[ContainerStat] = []
+
+
 class SmartDisk(_Msg):
     device: str
     model: str = ""
@@ -141,7 +155,15 @@ class Heartbeat(_Msg):
 
 
 AgentToHub = Annotated[
-    Hello | Metrics | Fs | ContainersFull | ContainerEvent | Smart | K8sDetected | Heartbeat,
+    Hello
+    | Metrics
+    | Fs
+    | ContainersFull
+    | ContainerEvent
+    | ContainerStats
+    | Smart
+    | K8sDetected
+    | Heartbeat,
     Field(discriminator="t"),
 ]
 

@@ -80,6 +80,30 @@ async def sync_cluster_once(cluster_id: int, client: K8sClient, bus: EventBus) -
         for obj in await client.list_items(path):
             workloads.append(mapper.map_workload(kind, obj))
     pods = [mapper.map_pod(o) for o in await client.list_items("/api/v1/pods")]
+
+    # Live usage via metrics-server; clusters without it just skip stats.
+    pod_usage: dict[tuple[str, str], tuple[int, int]] = {}
+    try:
+        for obj in await client.list_items("/apis/metrics.k8s.io/v1beta1/pods"):
+            namespace, name, cpu, mem = mapper.map_pod_metrics(obj)
+            pod_usage[(namespace, name)] = (cpu, mem)
+    except Exception:  # noqa: BLE001 — 404/403 without metrics-server
+        pod_usage = {}
+    workload_usage: dict[tuple[str, str, str], list[int]] = {}
+    for pod in pods:
+        target = mapper.workload_of_pod(pod)
+        usage = pod_usage.get((pod["namespace"], pod["name"]))
+        if target is None or usage is None:
+            continue
+        totals = workload_usage.setdefault(target, [0, 0])
+        totals[0] += usage[0]
+        totals[1] += usage[1]
+    for workload in workloads:
+        totals = workload_usage.get(
+            (workload["kind"], workload["namespace"], workload["name"])
+        )
+        workload["cpu_millis"] = totals[0] if totals else None
+        workload["mem_bytes"] = totals[1] if totals else None
     services = [mapper.map_service(o) for o in await client.list_items("/api/v1/services")]
     ingresses = [
         mapper.map_ingress(o)

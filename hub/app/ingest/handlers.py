@@ -62,6 +62,9 @@ def serialize_container(
         "ports": json.loads(container.ports_json or "[]"),
         "meta": merge_override(json.loads(container.bifrost_meta_json or "{}"), override),
         "started_at": container.started_at,
+        "cpu_pct": container.cpu_pct,
+        "mem_pct": container.mem_pct,
+        "mem_bytes": container.mem_bytes,
         "updated_at": container.updated_at,
         "node_uuid": node_uuid,
         "node_name": node_name,
@@ -97,6 +100,24 @@ def apply_containers_full(
     for container_id, row in existing.items():
         if container_id not in seen:
             session.delete(row)
+
+
+def apply_container_stats(
+    session: Session, node_id: int, stats: list[proto.ContainerStat]
+) -> None:
+    """Update live cpu/mem on known containers; unknown ids are ignored
+    (stats can race the next containers_full after a recreate)."""
+    rows = {
+        c.container_id: c
+        for c in session.scalars(select(Container).where(Container.node_id == node_id))
+    }
+    for stat in stats:
+        row = rows.get(stat.container_id)
+        if row is None:
+            continue
+        row.cpu_pct = stat.cpu_pct
+        row.mem_pct = stat.mem_pct
+        row.mem_bytes = stat.mem_bytes
 
 
 def list_node_containers(

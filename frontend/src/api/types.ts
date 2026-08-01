@@ -49,6 +49,11 @@ export interface ContainerInfo {
   ports: string[];
   meta: ContainerMeta;
   started_at: number | null;
+  /** Live usage: pct for docker, millicores for k8s; bytes for both. */
+  cpu_pct?: number | null;
+  mem_pct?: number | null;
+  mem_bytes?: number | null;
+  cpu_millis?: number | null;
   updated_at: number;
   node_uuid: string;
   node_name: string;

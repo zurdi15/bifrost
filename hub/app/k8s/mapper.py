@@ -98,6 +98,77 @@ def map_ingress(obj: dict) -> dict:
     }
 
 
+_MEM_UNITS = {
+    "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4,
+    "k": 1000, "M": 1000**2, "G": 1000**3, "T": 1000**4,
+}
+
+
+def parse_cpu_millis(quantity: str) -> int:
+    """k8s CPU quantity → millicores ('250m' → 250, '1' → 1000, '12345678n')."""
+    quantity = (quantity or "").strip()
+    if not quantity:
+        return 0
+    try:
+        if quantity.endswith("n"):
+            return int(int(quantity[:-1]) / 1_000_000)
+        if quantity.endswith("u"):
+            return int(int(quantity[:-1]) / 1_000)
+        if quantity.endswith("m"):
+            return int(quantity[:-1])
+        return int(float(quantity) * 1000)
+    except ValueError:
+        return 0
+
+
+def parse_mem_bytes(quantity: str) -> int:
+    """k8s memory quantity → bytes ('190Mi', '1Gi', '123456k', plain bytes)."""
+    quantity = (quantity or "").strip()
+    if not quantity:
+        return 0
+    for suffix, factor in _MEM_UNITS.items():
+        if quantity.endswith(suffix):
+            try:
+                return int(float(quantity[: -len(suffix)]) * factor)
+            except ValueError:
+                return 0
+    try:
+        return int(float(quantity))
+    except ValueError:
+        return 0
+
+
+def map_pod_metrics(obj: dict) -> tuple[str, str, int, int]:
+    """PodMetrics → (namespace, pod name, cpu millis, mem bytes)."""
+    meta = obj.get("metadata", {})
+    cpu = sum(
+        parse_cpu_millis(c.get("usage", {}).get("cpu", ""))
+        for c in obj.get("containers", [])
+    )
+    mem = sum(
+        parse_mem_bytes(c.get("usage", {}).get("memory", ""))
+        for c in obj.get("containers", [])
+    )
+    return meta.get("namespace", ""), meta.get("name", ""), cpu, mem
+
+
+def workload_of_pod(pod: dict) -> tuple[str, str, str] | None:
+    """(kind, namespace, workload name) a pod's usage rolls up to.
+
+    Deployments own pods through a ReplicaSet named <deployment>-<hash>."""
+    owner_kind, owner_name = pod.get("owner_kind"), pod.get("owner_name")
+    if not owner_kind or not owner_name:
+        return None
+    namespace = pod.get("namespace", "")
+    if owner_kind == "ReplicaSet":
+        return ("deployment", namespace, owner_name.rsplit("-", 1)[0])
+    if owner_kind == "StatefulSet":
+        return ("statefulset", namespace, owner_name)
+    if owner_kind == "DaemonSet":
+        return ("daemonset", namespace, owner_name)
+    return None
+
+
 def map_cronjob(obj: dict) -> dict:
     meta = obj.get("metadata", {})
     spec = obj.get("spec", {})

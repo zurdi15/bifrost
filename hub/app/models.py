@@ -58,6 +58,9 @@ class Container(Base):
     labels_json: Mapped[str | None]
     bifrost_meta_json: Mapped[str | None]  # {icon,url,group,hide} from bifrost.* labels
     started_at: Mapped[int | None]
+    cpu_pct: Mapped[float | None]
+    mem_pct: Mapped[float | None]
+    mem_bytes: Mapped[int | None]
     updated_at: Mapped[int] = mapped_column(default=now_ts)
 
 
@@ -150,6 +153,8 @@ class K8sWorkload(Base):
     images_json: Mapped[str | None]
     labels_json: Mapped[str | None]
     meta_json: Mapped[str | None]  # bifrost.* from labels+annotations
+    cpu_millis: Mapped[int | None]  # from metrics.k8s.io, summed over pods
+    mem_bytes: Mapped[int | None]
     updated_at: Mapped[int] = mapped_column(default=now_ts)
 
 

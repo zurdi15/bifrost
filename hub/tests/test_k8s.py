@@ -202,6 +202,28 @@ def test_sync_cluster_once_records_cronjob_run(client):
                     "status": {"readyReplicas": 1},
                 }
             ],
+            "/api/v1/pods": [
+                {
+                    "metadata": {
+                        "namespace": "media",
+                        "name": "romm-7d9f8b6c5-abcde",
+                        "ownerReferences": [
+                            {"kind": "ReplicaSet", "name": "romm-7d9f8b6c5"}
+                        ],
+                    },
+                    "status": {"phase": "Running", "containerStatuses": []},
+                    "spec": {"nodeName": "mimir"},
+                }
+            ],
+            "/apis/metrics.k8s.io/v1beta1/pods": [
+                {
+                    "metadata": {"namespace": "media", "name": "romm-7d9f8b6c5-abcde"},
+                    "containers": [
+                        {"usage": {"cpu": "250m", "memory": "190Mi"}},
+                        {"usage": {"cpu": "50m", "memory": "10Mi"}},
+                    ],
+                }
+            ],
             "/apis/networking.k8s.io/v1/ingresses": [
                 {
                     "metadata": {"namespace": "admin", "name": "grafana"},
@@ -252,6 +274,10 @@ def test_sync_cluster_once_records_cronjob_run(client):
     assert by_name["romm"]["state"] == "running"
     assert by_name["romm"]["node_name"] == "k3s@test"
     assert by_name["romm"]["source"] == "k8s"
+    # metrics-server usage rolled up pod→ReplicaSet→deployment.
+    assert by_name["romm"]["cpu_millis"] == 300
+    assert by_name["romm"]["mem_bytes"] == 200 * 1024 * 1024
+    assert by_name["grafana"]["cpu_millis"] is None  # no pods reporting
 
     # First sync changed inventory → one k8s.synced, then the cronjob run.
     event = events.get_nowait()

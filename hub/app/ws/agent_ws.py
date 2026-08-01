@@ -244,6 +244,17 @@ async def agent_ws(ws: WebSocket) -> None:
                 bus.publish(
                     "containers.updated", {"uuid": node_uuid, "containers": serialized}
                 )
+            elif isinstance(msg, proto.ContainerStats):
+                with session_scope() as session:
+                    handlers.apply_container_stats(session, node_id, msg.stats)
+                    db_node = session.get(Node, node_id)
+                    serialized = handlers.list_node_containers(
+                        session, node_id, node_uuid, db_node.name if db_node else ""
+                    )
+                conn.last_seq = msg.seq
+                bus.publish(
+                    "containers.updated", {"uuid": node_uuid, "containers": serialized}
+                )
             elif isinstance(msg, proto.ContainerEvent):
                 conn.last_seq = msg.seq
                 bus.publish(

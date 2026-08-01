@@ -180,6 +180,8 @@ def k8s_services_list(session: Session) -> list[dict]:
                 "ports": [],
                 "meta": meta,
                 "started_at": None,
+                "cpu_millis": workload.cpu_millis,
+                "mem_bytes": workload.mem_bytes,
                 "updated_at": workload.updated_at,
                 "node_uuid": f"k8s:{cluster.id}",
                 "node_name": cluster.name,
