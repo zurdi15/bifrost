@@ -64,7 +64,8 @@
     "nodes": "Nodos",
     "storage": "Almacenamiento",
     "jobs": "Jobs",
-    "settings": "Alertas"
+    "settings": "Alertas",
+    "edit": "editar layout"
   },
   "bookmarks": {
     "title": "Marcadores",

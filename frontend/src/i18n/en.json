@@ -64,7 +64,8 @@
     "nodes": "Nodes",
     "storage": "Storage",
     "jobs": "Jobs",
-    "settings": "Alerts"
+    "settings": "Alerts",
+    "edit": "edit layout"
   },
   "bookmarks": {
     "title": "Bookmarks",

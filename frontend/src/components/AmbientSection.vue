@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch, type Component } from 'vue';
+import { computed, onMounted, ref, shallowRef, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { mdiClose, mdiChevronLeft, mdiChevronRight, mdiCog, mdiPencil, mdiResize } from '@mdi/js';
+import { mdiClose, mdiChevronLeft, mdiChevronRight, mdiCog, mdiResize } from '@mdi/js';
 
 import BfButton from '@/lib/primitives/BfButton.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
-import { WIDGETS, type WidgetSize } from '@/widgets/registry';
+import { useLayoutStore, type AmbientEntry } from '@/stores/layout';
+import { useUiStore } from '@/stores/ui';
+import { WIDGETS } from '@/widgets/registry';
 
 interface WidgetRow {
   id: number;
@@ -14,16 +16,11 @@ interface WidgetRow {
   config: Record<string, unknown>;
 }
 
-interface LayoutEntry {
-  id: number;
-  size: WidgetSize;
-}
-
 const { t } = useI18n();
+const ui = useUiStore();
+const layoutStore = useLayoutStore();
 
 const widgets = ref<WidgetRow[]>([]);
-const layout = ref<LayoutEntry[]>([]);
-const editing = ref(false);
 const configOpen = ref<number | null>(null);
 const components = shallowRef(new Map<string, Component>());
 const configComponents = shallowRef(new Map<string, Component>());
@@ -50,44 +47,27 @@ async function ensureComponent(type: string): Promise<void> {
 }
 
 onMounted(async () => {
-  const [rows, saved] = await Promise.all([
-    api<WidgetRow[]>('/widgets'),
-    api<{ ambient?: LayoutEntry[] }>('/dashboard'),
-  ]);
+  const [rows] = await Promise.all([api<WidgetRow[]>('/widgets'), layoutStore.load()]);
   widgets.value = rows;
   const known = new Set(rows.map((row) => row.id));
-  layout.value = (saved.ambient ?? []).filter((entry) => known.has(entry.id));
+  const kept = layoutStore.ambient.filter((entry) => known.has(entry.id));
   // Widgets created but missing from the layout (e.g. older sessions) append.
   for (const row of rows) {
-    if (!layout.value.some((entry) => entry.id === row.id)) {
-      layout.value.push({ id: row.id, size: WIDGETS[row.type]?.defaultSize ?? '1x1' });
+    if (!kept.some((entry) => entry.id === row.id)) {
+      kept.push({ id: row.id, size: WIDGETS[row.type]?.defaultSize ?? '1x1' });
     }
   }
+  layoutStore.ambient = kept;
   await Promise.all(rows.map((row) => ensureComponent(row.type)));
 });
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-watch(
-  layout,
-  () => {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      void api('/dashboard', {
-        method: 'PUT',
-        body: JSON.stringify({ ambient: layout.value }),
-      });
-    }, 800);
-  },
-  { deep: true },
-);
-
 const entries = computed(() =>
-  layout.value
+  layoutStore.ambient
     .map((entry) => ({
       entry,
       widget: widgets.value.find((w) => w.id === entry.id),
     }))
-    .filter((x): x is { entry: LayoutEntry; widget: WidgetRow } => !!x.widget),
+    .filter((x): x is { entry: AmbientEntry; widget: WidgetRow } => !!x.widget),
 );
 
 async function addWidget(type: string): Promise<void> {
@@ -97,28 +77,31 @@ async function addWidget(type: string): Promise<void> {
     body: JSON.stringify({ type, config: manifest.defaultConfig }),
   });
   widgets.value.push(created);
-  layout.value.push({ id: created.id, size: manifest.defaultSize });
+  layoutStore.ambient.push({ id: created.id, size: manifest.defaultSize });
+  layoutStore.save();
   await ensureComponent(type);
 }
 
 async function removeWidget(id: number): Promise<void> {
   await api(`/widgets/${id}`, { method: 'DELETE' });
   widgets.value = widgets.value.filter((w) => w.id !== id);
-  layout.value = layout.value.filter((entry) => entry.id !== id);
+  layoutStore.ambient = layoutStore.ambient.filter((entry) => entry.id !== id);
+  layoutStore.save();
 }
 
 function move(id: number, delta: number): void {
-  const index = layout.value.findIndex((entry) => entry.id === id);
+  const entries = layoutStore.ambient;
+  const index = entries.findIndex((entry) => entry.id === id);
   const target = index + delta;
-  if (index < 0 || target < 0 || target >= layout.value.length) return;
-  const next = [...layout.value];
-  [next[index], next[target]] = [next[target], next[index]];
-  layout.value = next;
+  if (index < 0 || target < 0 || target >= entries.length) return;
+  [entries[index], entries[target]] = [entries[target], entries[index]];
+  layoutStore.save();
 }
 
-function cycleSize(entry: LayoutEntry, type: string): void {
-  const sizes = WIDGETS[type]?.sizes ?? ['1x1'];
+function cycleSize(entry: AmbientEntry, type: string): void {
+  const sizes: string[] = WIDGETS[type]?.sizes ?? ['1x1'];
   entry.size = sizes[(sizes.indexOf(entry.size) + 1) % sizes.length];
+  layoutStore.save();
 }
 
 async function saveConfig(widget: WidgetRow, config: Record<string, unknown>): Promise<void> {
@@ -133,36 +116,31 @@ async function saveConfig(widget: WidgetRow, config: Record<string, unknown>): P
 
 <template>
   <section class="ambient">
-    <header class="section-head">
-      <h2 class="title">{{ t('widgets.title') }}</h2>
+    <!-- No heading: the widgets speak for themselves. Add-buttons appear
+         only in the global edit mode (pencil in the topbar). -->
+    <header v-if="ui.editing" class="section-head">
       <span class="actions">
-        <template v-if="editing">
-          <BfButton
-            v-for="(manifest, type) in WIDGETS"
-            :key="type"
-            size="sm"
-            @click="addWidget(String(type))"
-          >
-            + {{ t(manifest.titleKey) }}
-          </BfButton>
-        </template>
-        <BfButton size="sm" :variant="editing ? 'primary' : 'ghost'" @click="editing = !editing">
-          <BfIcon :path="mdiPencil" :size="13" />
-          {{ editing ? t('widgets.done') : t('widgets.edit') }}
+        <BfButton
+          v-for="(manifest, type) in WIDGETS"
+          :key="type"
+          size="sm"
+          @click="addWidget(String(type))"
+        >
+          + {{ t(manifest.titleKey) }}
         </BfButton>
       </span>
     </header>
 
-    <p v-if="entries.length === 0" class="empty">{{ t('widgets.empty') }}</p>
+    <p v-if="entries.length === 0 && ui.editing" class="empty">{{ t('widgets.empty') }}</p>
 
     <TransitionGroup tag="div" class="grid" name="bf-grid" appear>
       <BfCard
         v-for="{ entry, widget } in entries"
         :key="widget.id"
         class="cell"
-        :class="[`s-${entry.size}`, { editing }]"
+        :class="[`s-${entry.size}`, { editing: ui.editing }]"
       >
-        <div v-if="editing" class="controls">
+        <div v-if="ui.editing" class="controls">
           <button class="ctl" type="button" @click="move(widget.id, -1)" :aria-label="t('widgets.left')">
             <BfIcon :path="mdiChevronLeft" :size="14" />
           </button>
@@ -188,7 +166,7 @@ async function saveConfig(widget: WidgetRow, config: Record<string, unknown>): P
 
         <component
           :is="configComponents.get(widget.type)"
-          v-if="editing && configOpen === widget.id && configComponents.get(widget.type)"
+          v-if="ui.editing && configOpen === widget.id && configComponents.get(widget.type)"
           :config="widget.config"
           @save="saveConfig(widget, $event)"
         />

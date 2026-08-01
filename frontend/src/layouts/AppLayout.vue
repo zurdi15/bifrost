@@ -1,21 +1,30 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref } from 'vue';
+import { computed, onMounted, onScopeDispose, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
 import {
   mdiBellOutline,
   mdiCalendarClock,
   mdiHarddisk,
+  mdiPencilOutline,
   mdiServer,
   mdiViewDashboardOutline,
 } from '@mdi/js';
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
+import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
+import { useUiStore } from '@/stores/ui';
 import { formatClock } from '@/utils/format';
 
 const { t } = useI18n();
 const live = useLiveStore();
+const ui = useUiStore();
+const route = useRoute();
+
+// Saved drag orders are needed by every view — load once here.
+onMounted(() => void useLayoutStore().load());
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', icon: mdiViewDashboardOutline, exact: true },
@@ -24,6 +33,14 @@ const NAV = [
   { to: '/jobs', key: 'nav.jobs', icon: mdiCalendarClock, exact: false },
   { to: '/settings', key: 'nav.settings', icon: mdiBellOutline, exact: false },
 ];
+
+// Drives the sliding pill in both navs (items are fixed-width).
+const activeIndex = computed(() => {
+  const index = NAV.findIndex((item) =>
+    item.exact ? route.path === item.to : route.path.startsWith(item.to),
+  );
+  return index === -1 ? 0 : index;
+});
 
 const now = ref(Math.floor(Date.now() / 1000));
 const timer = setInterval(() => (now.value = Math.floor(Date.now() / 1000)), 1000);
@@ -41,19 +58,34 @@ const hubDown = computed(() => live.connection !== 'live');
 
     <header class="topbar">
       <RouterLink to="/" class="wordmark">⌁ bifrost</RouterLink>
-      <nav class="nav">
+      <!-- Same language as the mobile dock: an icon cluster with a pill
+           that glides to the active section. -->
+      <nav class="nav" :style="{ '--i': activeIndex }">
+        <span class="nav-pill" aria-hidden="true" />
         <RouterLink
           v-for="item in NAV"
           :key="item.to"
           :to="item.to"
-          class="nav-link"
+          class="nav-link bf-tip-bottom"
           :exact-active-class="item.exact ? 'active' : ''"
           :active-class="item.exact ? '' : 'active'"
+          :data-bf-tip="t(item.key)"
+          :aria-label="t(item.key)"
         >
-          {{ t(item.key) }}
+          <BfIcon :path="item.icon" :size="19" />
         </RouterLink>
       </nav>
       <div class="right">
+        <button
+          class="edit-mode bf-tip-bl"
+          :class="{ on: ui.editing }"
+          type="button"
+          :data-bf-tip="t('nav.edit')"
+          :aria-label="t('nav.edit')"
+          @click="ui.editing = !ui.editing"
+        >
+          <BfIcon :path="mdiPencilOutline" :size="14" />
+        </button>
         <ConnectionPill />
         <span class="clock bf-metric">{{ clock }}</span>
       </div>
@@ -65,7 +97,8 @@ const hubDown = computed(() => live.connection !== 'live');
 
     <!-- Mobile: the topbar nav collapses into a floating glass dock.
          Icons only; the label lives in aria/title. -->
-    <nav class="dock" :aria-label="t('nav.dashboard')">
+    <nav class="dock" :style="{ '--i': activeIndex }" :aria-label="t('nav.dashboard')">
+      <span class="dock-pill" aria-hidden="true" />
       <RouterLink
         v-for="item in NAV"
         :key="item.to"
@@ -121,33 +154,77 @@ const hubDown = computed(() => live.connection !== 'live');
   color: transparent;
 }
 .nav {
+  position: relative;
   display: flex;
-  gap: 0.3rem;
+  padding: 0.28rem;
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-pill);
+  background: color-mix(in srgb, var(--bf-surface) 72%, transparent);
+}
+.nav-pill {
+  position: absolute;
+  top: 0.28rem;
+  left: 0.28rem;
+  width: 3rem;
+  height: calc(100% - 0.56rem);
+  border-radius: var(--bf-radius-pill);
+  background: var(--bf-brand-tint);
+  transform: translateX(calc(var(--i) * 3rem));
+  transition: transform var(--bf-dur-300) var(--bf-ease-spring);
 }
 .nav-link {
-  padding: 0.3rem 0.75rem;
-  border-radius: var(--bf-radius-ctl);
-  font-size: 0.82rem;
-  font-weight: 550;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 2.1rem;
+  border-radius: var(--bf-radius-pill);
   text-decoration: none;
   color: var(--bf-ink-muted);
-  transition:
-    color var(--bf-dur-150),
-    background-color var(--bf-dur-150);
+  transition: color var(--bf-dur-150);
 }
 .nav-link:hover {
   color: var(--bf-ink);
-  background: var(--bf-surface-raised);
 }
 .nav-link.active {
   color: var(--bf-brand);
-  background: var(--bf-brand-tint);
 }
 .right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.9rem;
+}
+/* Global edit mode: deliberately quiet until you need it. */
+.edit-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--bf-radius-ctl);
+  background: transparent;
+  color: var(--bf-ink-faint);
+  opacity: 0.5;
+  cursor: pointer;
+  transition:
+    opacity var(--bf-dur-150),
+    color var(--bf-dur-150),
+    border-color var(--bf-dur-150);
+}
+.edit-mode:hover {
+  opacity: 1;
+  color: var(--bf-ink);
+}
+.edit-mode.on {
+  opacity: 1;
+  color: var(--bf-brand);
+  border-color: var(--bf-brand);
+  background: var(--bf-brand-tint);
 }
 .clock {
   font-size: 0.85rem;
@@ -193,7 +270,20 @@ const hubDown = computed(() => live.connection !== 'live');
     backdrop-filter: blur(18px) saturate(1.4);
     box-shadow: var(--bf-shadow-lift);
   }
+  .dock-pill {
+    position: absolute;
+    top: 0.3rem;
+    left: 0.3rem;
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: var(--bf-radius-pill);
+    background: var(--bf-brand-tint);
+    transform: translateX(calc(var(--i) * (2.9rem + 0.15rem)));
+    transition: transform var(--bf-dur-300) var(--bf-ease-spring);
+  }
   .dock-link {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -202,13 +292,10 @@ const hubDown = computed(() => live.connection !== 'live');
     border-radius: var(--bf-radius-pill);
     text-decoration: none;
     color: var(--bf-ink-muted);
-    transition:
-      color var(--bf-dur-150),
-      background-color var(--bf-dur-150);
+    transition: color var(--bf-dur-150);
   }
   .dock-link.active {
     color: var(--bf-brand);
-    background: var(--bf-brand-tint);
   }
 }
 </style>
