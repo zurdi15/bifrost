@@ -1,4 +1,9 @@
-# ⌁ bifrost
+<p align="center">
+  <img src="bifrost.svg" alt="" width="130" />
+</p>
+<p align="center">
+  <img src="bifrost-logo.svg" alt="BIFROST" width="420" />
+</p>
 
 > The bridge between you and your homelab.
 
