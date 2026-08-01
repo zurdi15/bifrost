@@ -110,6 +110,21 @@ async def widget_data(widget_id: int) -> dict:
     return {"id": widget_id, "type": widget.type, "data": data}
 
 
+@router.get("/weather")
+async def weather_data(lat: float, lon: float) -> dict:
+    """Weather without a widget — the topbar's out-of-the-box fallback.
+
+    Same fetch and cache as the weather widget type; the caller supplies the
+    location (the frontend uses the widget's default coordinates)."""
+    try:
+        data = await REGISTRY["weather"].data({"lat": lat, "lon": lon})
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="invalid coordinates") from exc
+    except Exception as exc:  # third-party fetch failed
+        raise HTTPException(status_code=502, detail=f"weather fetch failed: {exc}") from exc
+    return {"data": data}
+
+
 @router.get("/dashboard")
 def get_dashboard(session: Session = Depends(get_session)) -> dict:
     dashboard = session.scalar(select(Dashboard).where(Dashboard.name == DEFAULT_DASHBOARD))

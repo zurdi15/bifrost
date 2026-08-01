@@ -2,6 +2,7 @@
 import { onMounted, onScopeDispose, ref } from 'vue';
 
 import WeatherGlyph from '@/widgets/weather/Glyph.vue';
+import weatherManifest from '@/widgets/weather/manifest';
 
 interface WeatherData {
   temp: number | null;
@@ -13,8 +14,9 @@ interface WeatherData {
 }
 
 // Mirrors the dashboard weather widget: same source, same data, compact.
-// Renders nothing until a weather widget exists (that's where the location
-// is configured).
+// A configured weather widget wins (that's where the location lives); with
+// none, it falls back to the widget's default coordinates — same out-of-the-box
+// behavior as adding the widget, except this one is always there.
 const data = ref<WeatherData | null>(null);
 let widgetId: number | null = null;
 
@@ -26,11 +28,13 @@ async function load(): Promise<void> {
       ).json();
       widgetId = rows.find((row) => row.type === 'weather')?.id ?? null;
     }
-    if (widgetId === null) {
-      data.value = null;
-      return;
+    let response: Response;
+    if (widgetId !== null) {
+      response = await fetch(`/api/v1/widgets/${widgetId}/data`);
+    } else {
+      const { lat, lon } = weatherManifest.defaultConfig as { lat: number; lon: number };
+      response = await fetch(`/api/v1/weather?lat=${lat}&lon=${lon}`);
     }
-    const response = await fetch(`/api/v1/widgets/${widgetId}/data`);
     if (!response.ok) throw new Error(String(response.status));
     data.value = (await response.json()).data;
   } catch {

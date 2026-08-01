@@ -73,6 +73,34 @@ def test_weather_proxy_cached(client, monkeypatch):
     client.get(f"/api/v1/widgets/{widget['id']}/data")
     assert calls["n"] == 1
 
+    # The widget-less endpoint (topbar fallback) shares the same cache entry.
+    data = client.get("/api/v1/weather", params={"lat": 40.42, "lon": -3.7}).json()
+    assert data["data"]["temp"] == 14.2
+    assert calls["n"] == 1
+
+
+def test_weather_without_widget(client, monkeypatch):
+    def fake_open_meteo(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "current": {"temperature_2m": 21.5, "weather_code": 0},
+                "daily": {"temperature_2m_max": [25.0], "temperature_2m_min": [12.0]},
+            },
+        )
+
+    monkeypatch.setattr(weather, "transport", httpx.MockTransport(fake_open_meteo))
+    from app.widgets.base import REGISTRY
+
+    REGISTRY["weather"]._cache.clear()
+
+    data = client.get("/api/v1/weather", params={"lat": 51.5, "lon": -0.1}).json()
+    assert data["data"]["temp"] == 21.5
+    assert data["data"]["temp_min"] == 12.0
+
+    # Out-of-range coordinates are a client error, not a crash.
+    assert client.get("/api/v1/weather", params={"lat": 999, "lon": 0}).status_code == 422
+
 
 def test_homeassistant_widget(client, monkeypatch):
     from app.widgets import homeassistant
