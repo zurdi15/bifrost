@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -19,6 +19,13 @@ const tab = computed<'services' | 'bookmarks'>({
   get: () => (route.hash === '#bookmarks' ? 'bookmarks' : 'services'),
   set: (value) =>
     void router.replace({ hash: value === 'bookmarks' ? '#bookmarks' : '' }),
+});
+
+// Switching tabs slides the panel in from the side you moved toward
+// (bookmarks sits to the right of services, like its tab).
+const swap = ref<'left' | 'right'>('right');
+watch(tab, (next) => {
+  swap.value = next === 'bookmarks' ? 'right' : 'left';
 });
 
 const ui = useUiStore();
@@ -61,8 +68,13 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
         </button>
       </nav>
 
-      <ServicesSection v-if="tab === 'services'" embedded />
-      <BookmarksSection v-else embedded />
+      <div
+        :key="tab"
+        :class="swap === 'right' ? 'bf-slide-in-right' : 'bf-slide-in-left'"
+      >
+        <ServicesSection v-if="tab === 'services'" embedded />
+        <BookmarksSection v-else embedded />
+      </div>
     </div>
 
     <AmbientSection v-if="showAside" class="aside" />

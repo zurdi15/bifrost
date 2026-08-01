@@ -59,6 +59,38 @@
   animation: bf-pop-in var(--bf-dur-300) var(--bf-ease-bounce) both;
 }
 
+/* Directional panel swap (e.g. dashboard tabs): the new content slides in
+   from the side you moved toward; the old one leaves instantly. */
+@keyframes bf-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bf-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.bf-slide-in-right {
+  animation: bf-slide-in-right var(--bf-dur-300) var(--bf-ease-spring) both;
+}
+
+.bf-slide-in-left {
+  animation: bf-slide-in-left var(--bf-dur-300) var(--bf-ease-spring) both;
+}
+
 /* ── liveness ── */
 
 /* Heartbeat pulse ring. Desync via --bf-desync (negative ms delay per node)
@@ -145,6 +177,8 @@
   }
   /* Keep plain fades so state changes remain perceivable. */
   .bf-rise-in,
+  .bf-slide-in-right,
+  .bf-slide-in-left,
   .bf-stagger > * {
     animation-name: bf-fade-in !important;
   }
