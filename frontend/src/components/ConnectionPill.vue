@@ -2,13 +2,12 @@
 import { computed, onScopeDispose, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import BfChip from '@/lib/primitives/BfChip.vue';
 import { useLiveStore } from '@/stores/live';
 
 const { t } = useI18n();
 const live = useLiveStore();
 
-// Ticking countdown for the reconnect pill.
+// Ticking countdown for the reconnect tooltip.
 const now = ref(Date.now());
 const timer = setInterval(() => (now.value = Date.now()), 500);
 onScopeDispose(() => clearInterval(timer));
@@ -38,30 +37,34 @@ const label = computed(() =>
 </script>
 
 <template>
-  <!-- Healthy is the norm: live collapses to a plain dot (label on hover).
-       Anything else deserves words. -->
-  <span v-if="live.connection === 'live'" class="live-dot bf-tip-bl" :data-bf-tip="label">
+  <!-- Always just a dot; the words live in the tooltip. A text chip here
+       overflows the mobile topbar the moment the hub goes unreachable. -->
+  <span class="conn-dot bf-tip-bl" :class="tone" :data-bf-tip="label" tabindex="0">
     <span class="sr-only">{{ label }}</span>
   </span>
-  <BfChip v-else :tone="tone" mono>
-    <span class="dot" aria-hidden="true" />
-    {{ label }}
-  </BfChip>
 </template>
 
 <style scoped>
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.live-dot {
+.conn-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex: none;
+}
+.up {
   background: var(--bf-status-up);
   box-shadow: 0 0 6px color-mix(in srgb, var(--bf-status-up) 60%, transparent);
+}
+.warn {
+  background: var(--bf-status-warn);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--bf-status-warn) 60%, transparent);
+}
+.down {
+  background: var(--bf-status-down);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--bf-status-down) 60%, transparent);
+}
+.unknown {
+  background: var(--bf-status-unknown);
 }
 .sr-only {
   position: absolute;
