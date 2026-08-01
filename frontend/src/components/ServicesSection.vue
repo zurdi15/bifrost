@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { mdiEyeOffOutline } from '@mdi/js';
 
@@ -20,6 +20,20 @@ const layout = useLayoutStore();
 const nodeFilter = ref<string | null>(null);
 const showHidden = ref(false);
 
+// How the cards bucket together. A per-browser view preference, not layout.
+const MODES = [
+  { id: 'group', label: 'services.byGroup' },
+  { id: 'node', label: 'services.byNode' },
+  { id: 'state', label: 'services.byState' },
+] as const;
+type GroupMode = (typeof MODES)[number]['id'];
+const storedMode = localStorage.getItem('bf-services-groupby') as GroupMode | null;
+const groupMode = ref<GroupMode>(
+  MODES.some((mode) => mode.id === storedMode) ? storedMode! : 'group',
+);
+watch(groupMode, (mode) => localStorage.setItem('bf-services-groupby', mode));
+const modeIndex = computed(() => MODES.findIndex((mode) => mode.id === groupMode.value));
+
 // Stable per-service id: names survive container recreation, ids don't.
 const serviceId = (container: ContainerInfo): string =>
   `${container.node_uuid}:${container.name}`;
@@ -39,18 +53,49 @@ const sources = computed(() => {
   return [...seen.entries()].map(([uuid, name]) => ({ uuid, name }));
 });
 
-// Group headers via bifrost.group labels; ungrouped last. Each group is
-// drag-orderable in edit mode (persisted per group).
-const groups = computed(() => {
-  const map = new Map<string, typeof filtered.value>();
+interface Bucket {
+  key: string;
+  label: string;
+  list: ContainerInfo[];
+}
+
+// Buckets by the active mode. Only the label-group view is drag-orderable:
+// that's the canonical layout the saved order belongs to.
+const groups = computed<Bucket[]>(() => {
+  const map = new Map<string, ContainerInfo[]>();
+  const keyOf = (container: ContainerInfo): string => {
+    switch (groupMode.value) {
+      case 'node':
+        return container.node_name;
+      case 'state':
+        return container.state === 'running' ? 'running' : 'stopped';
+      default:
+        return container.meta.group ?? '';
+    }
+  };
   for (const container of filtered.value) {
-    const key = container.meta.group ?? '';
+    const key = keyOf(container);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(container);
   }
-  return [...map.entries()]
-    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
-    .map(([group, list]) => [group, layout.apply(`svc:${group}`, list, serviceId)] as const);
+  switch (groupMode.value) {
+    case 'node':
+      return [...map.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, list]) => ({ key, label: key, list }));
+    case 'state':
+      return (['running', 'stopped'] as const)
+        .filter((key) => map.has(key))
+        .map((key) => ({ key, label: t(`services.${key}`), list: map.get(key)! }));
+    default:
+      return [...map.entries()]
+        .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+        .map(([key, list]) => ({
+          key,
+          label: key,
+          list: layout.apply(`svc:${key}`, list, serviceId),
+        }));
+  }
 });
 
 function toggleNode(uuid: string): void {
@@ -65,6 +110,26 @@ function toggleNode(uuid: string): void {
   >
     <header class="section-head">
       <h2 v-if="!embedded" class="title">{{ t('services.title') }}</h2>
+      <!-- Same visual language as the nav: a cluster with a gliding pill. -->
+      <span
+        class="modes"
+        :style="{ '--i': modeIndex }"
+        role="group"
+        :aria-label="t('services.groupBy')"
+      >
+        <span class="mode-pill" aria-hidden="true" />
+        <button
+          v-for="mode in MODES"
+          :key="mode.id"
+          class="mode"
+          :class="{ active: groupMode === mode.id }"
+          type="button"
+          :aria-pressed="groupMode === mode.id"
+          @click="groupMode = mode.id"
+        >
+          {{ t(mode.label) }}
+        </button>
+      </span>
       <span class="filters">
         <button
           v-if="live.hiddenContainers.length > 0"
@@ -96,13 +161,14 @@ function toggleNode(uuid: string): void {
       {{ t('services.empty') }}
     </p>
 
-    <div v-for="([group, list], gi) in groups" :key="group || '_'" class="group">
-      <h3 v-if="group" class="group-title">{{ group }}</h3>
+    <div v-for="(bucket, gi) in groups" :key="bucket.key || '_'" class="group">
+      <h3 v-if="bucket.label" class="group-title">{{ bucket.label }}</h3>
       <SortableList
         class="grid bf-stagger"
-        :items="list"
+        :items="bucket.list"
         :id-of="serviceId"
-        @reorder="(ids) => layout.setOrder(`svc:${group}`, ids)"
+        :disabled="groupMode !== 'group'"
+        @reorder="(ids) => layout.setOrder(`svc:${bucket.key}`, ids)"
       >
         <template #item="{ element: container, index: i }">
           <ContainerCard
@@ -139,6 +205,48 @@ function toggleNode(uuid: string): void {
   display: flex;
   gap: 0.35rem;
   margin-left: auto;
+}
+/* Group-by cluster: fixed-width segments so the pill glides on a transform. */
+.modes {
+  position: relative;
+  display: inline-flex;
+  padding: 0.2rem;
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-pill);
+  background: color-mix(in srgb, var(--bf-surface) 72%, transparent);
+}
+.mode-pill {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 4.2rem;
+  height: calc(100% - 0.4rem);
+  border-radius: var(--bf-radius-pill);
+  background: var(--bf-brand-tint);
+  transform: translateX(calc(var(--i) * 4.2rem));
+  transition: transform var(--bf-dur-300) var(--bf-ease-spring);
+}
+.mode {
+  position: relative;
+  z-index: 1;
+  width: 4.2rem;
+  padding: 0.22rem 0;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: none;
+  background: transparent;
+  color: var(--bf-ink-muted);
+  cursor: pointer;
+  transition: color var(--bf-dur-150);
+}
+.mode:hover {
+  color: var(--bf-ink);
+}
+.mode.active {
+  color: var(--bf-brand);
 }
 .dimmed {
   opacity: 0.55;

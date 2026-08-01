@@ -45,7 +45,13 @@
   "services": {
     "title": "Services",
     "count": "{running}/{total} running",
-    "empty": "No services yet — mount the Docker socket on an agent or connect a cluster."
+    "empty": "No services yet — mount the Docker socket on an agent or connect a cluster.",
+    "groupBy": "group by",
+    "byGroup": "group",
+    "byNode": "node",
+    "byState": "status",
+    "running": "active",
+    "stopped": "inactive"
   },
   "service": {
     "edit": "customize",
