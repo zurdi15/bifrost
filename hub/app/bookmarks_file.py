@@ -12,12 +12,18 @@ Two shapes, mixable in the same top-level list:
           url: https://romm.local
 
 File entries own their rows (source='file'): the sync replaces them to
-mirror the file exactly, while UI-created bookmarks are left untouched.
-Synced on startup and whenever the file's mtime changes.
+mirror the file exactly. Synced on startup and whenever the file's mtime
+changes.
+
+The mirror is two-way: UI creates/edits/deletes write through to the file
+(DB first, then `write_bookmarks_file` regenerates the YAML), so the file
+always holds the full set of links. Hand-written comments do not survive a
+UI write. `source='ui'` rows only appear when the file isn't writable.
 """
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 
 import yaml
@@ -31,6 +37,10 @@ from app.models import Bookmark
 logger = logging.getLogger("bifrost.bookmarks")
 
 WATCH_INTERVAL_S = 30
+
+# Serializes file read-modify-write between the API endpoints (threadpool)
+# and the watcher (asyncio.to_thread) so neither sees a half-applied state.
+file_lock = threading.Lock()
 
 
 def resolve_bookmarks_path() -> Path:
@@ -74,6 +84,49 @@ def parse_bookmarks_yaml(text: str) -> list[dict]:
         else:
             add(block, block.get("group") if isinstance(block, dict) else None)
     return entries
+
+
+def entry_of(bookmark: Bookmark) -> dict:
+    """Row → the parse_bookmarks_yaml entry shape."""
+    return {
+        "name": bookmark.name,
+        "url": bookmark.url,
+        "icon": bookmark.icon,
+        "group": bookmark.group_name,
+    }
+
+
+def dump_bookmarks_yaml(entries: list[dict]) -> str:
+    """Inverse of parse_bookmarks_yaml: consecutive same-group entries fold
+    into one group block, ungrouped entries stay flat."""
+    blocks: list[dict] = []
+    for entry in entries:
+        item: dict = {"name": entry["name"], "url": entry["url"]}
+        if entry.get("icon"):
+            item["icon"] = entry["icon"]
+        group = entry.get("group")
+        if not group:
+            blocks.append(item)
+        elif blocks and blocks[-1].get("group") == group:
+            blocks[-1]["items"].append(item)
+        else:
+            blocks.append({"group": group, "items": [item]})
+    return yaml.safe_dump(blocks, allow_unicode=True, sort_keys=False)
+
+
+def write_bookmarks_file(entries: list[dict]) -> bool:
+    """Mirror UI-mutated entries into the YAML (the DB changed first).
+    False when the file can't be written — the caller keeps the change
+    DB-only. Call with file_lock held."""
+    path = resolve_bookmarks_path()
+    if path.is_dir():
+        return False
+    try:
+        path.write_text(dump_bookmarks_yaml(entries))
+    except OSError as exc:
+        logger.warning("bookmarks write-through to %s failed: %s", path, exc)
+        return False
+    return True
 
 
 def sync_file_bookmarks(entries: list[dict]) -> bool:
@@ -120,17 +173,18 @@ def load_bookmarks_file(path: Path) -> bool:
             path,
         )
         return False
-    try:
-        entries = parse_bookmarks_yaml(path.read_text())
-    except FileNotFoundError:
-        entries = []
-    except (ValueError, OSError, yaml.YAMLError) as exc:
-        logger.warning("bookmarks file %s ignored: %s", path, exc)
+    with file_lock:
+        try:
+            entries = parse_bookmarks_yaml(path.read_text())
+        except FileNotFoundError:
+            entries = []
+        except (ValueError, OSError, yaml.YAMLError) as exc:
+            logger.warning("bookmarks file %s ignored: %s", path, exc)
+            return False
+        if sync_file_bookmarks(entries):
+            logger.info("bookmarks synced from %s (%d entries)", path, len(entries))
+            return True
         return False
-    if sync_file_bookmarks(entries):
-        logger.info("bookmarks synced from %s (%d entries)", path, len(entries))
-        return True
-    return False
 
 
 async def bookmarks_file_watcher(bus: EventBus) -> None:

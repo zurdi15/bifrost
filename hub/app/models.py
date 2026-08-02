@@ -250,7 +250,9 @@ class EndpointCheck(Base):
 
 class Bookmark(Base):
     """Plain dashboard links — no probing, no state, just name/url/icon.
-    source='file' rows are owned by bookmarks.yml and read-only in the UI."""
+    source='file' rows mirror bookmarks.yml both ways: external file edits
+    resync the rows, UI edits write through to the file. source='ui' rows
+    only appear when the file isn't writable."""
 
     __tablename__ = "bookmarks"
 

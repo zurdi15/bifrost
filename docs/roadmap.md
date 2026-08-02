@@ -31,7 +31,8 @@ All planned phases are built:
   in Docker **and** Kubernetes; auto-icons from the selfh.st index.
 - Kubernetes workloads as dashboard service cards (one per deployment, ingress-derived
   URLs).
-- Bookmarks: UI CRUD + declarative `bookmarks.yml` ingestion with live re-sync.
+- Bookmarks: UI CRUD + declarative `bookmarks.yml` ingestion with live re-sync;
+  UI edits write through to the file, so it always holds the full set.
 - Nodes page split from the dashboard (services/bookmarks/widgets tabs + ambient rail),
   mobile glass dock, styled tooltips, node URLs.
 - Home Assistant widget (entities via long-lived token, hub-proxied and cached).

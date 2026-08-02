@@ -1,6 +1,7 @@
 import pytest
 
 from app.bookmarks_file import (
+    dump_bookmarks_yaml,
     load_bookmarks_file,
     parse_bookmarks_yaml,
     resolve_bookmarks_path,
@@ -34,29 +35,35 @@ def test_parse_grouped_and_flat():
         parse_bookmarks_yaml("- name: no-url-here")
 
 
-def test_file_sync_mirrors_file_and_leaves_ui_rows(client, tmp_path):
-    # A UI bookmark exists first.
-    ui_bookmark = client.post(
-        "/api/v1/bookmarks", json={"name": "Mine", "url": "https://mine.example"}
-    ).json()
+def test_dump_roundtrip():
+    entries = parse_bookmarks_yaml(YAML)
+    assert parse_bookmarks_yaml(dump_bookmarks_yaml(entries)) == entries
+    assert parse_bookmarks_yaml(dump_bookmarks_yaml([])) == []
 
+
+def test_file_sync_mirrors_external_edits(client, tmp_path):
+    # A UI-created bookmark writes through, so the file owns it…
+    client.post("/api/v1/bookmarks", json={"name": "Mine", "url": "https://mine.example"})
+
+    # …and an external rewrite of the file is authoritative: it replaces the
+    # whole set, UI-created entries included.
     path = tmp_path / "bookmarks.yml"
     path.write_text(YAML)
     assert load_bookmarks_file(path) is True
 
     rows = client.get("/api/v1/bookmarks").json()
     by_name = {b["name"]: b for b in rows}
-    assert set(by_name) == {"Mine", "RomM", "Jellyfin", "Router"}
-    assert by_name["RomM"]["source"] == "file"
-    assert by_name["Mine"]["source"] == "ui"
+    assert set(by_name) == {"RomM", "Jellyfin", "Router"}
+    assert all(b["source"] == "file" for b in rows)
 
-    # File rows are read-only through the API.
+    # File rows are editable through the API and write back to the file.
     file_id = by_name["RomM"]["id"]
-    assert client.patch(f"/api/v1/bookmarks/{file_id}", json={"name": "x"}).status_code == 409
-    assert client.delete(f"/api/v1/bookmarks/{file_id}").status_code == 409
-    assert client.delete(f"/api/v1/bookmarks/{ui_bookmark['id']}").status_code == 204
+    assert client.patch(f"/api/v1/bookmarks/{file_id}", json={"name": "RomM2"}).status_code == 200
+    assert "RomM2" in path.read_text()
+    assert client.delete(f"/api/v1/bookmarks/{file_id}").status_code == 204
+    assert "RomM2" not in path.read_text()
 
-    # Shrinking the file removes its rows — and only its rows.
+    # Shrinking the file removes its rows.
     path.write_text("- name: Router\n  url: http://192.168.1.1\n")
     assert load_bookmarks_file(path) is True
     assert [b["name"] for b in client.get("/api/v1/bookmarks").json()] == ["Router"]

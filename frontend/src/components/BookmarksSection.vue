@@ -8,6 +8,7 @@ import type { BookmarkInfo } from '@/api/types';
 import SortableList from '@/components/SortableList.vue';
 import BfButton from '@/lib/primitives/BfButton.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
+import { useDashboardStore } from '@/stores/dashboard';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
 import { useUiStore } from '@/stores/ui';
@@ -19,6 +20,7 @@ const { t } = useI18n();
 const icons = useIconStore();
 const live = useLiveStore();
 const ui = useUiStore();
+const dash = useDashboardStore();
 
 const bookmarks = ref<BookmarkInfo[]>([]);
 const loaded = ref(false);
@@ -46,9 +48,20 @@ watchEffect(() => {
   }
 });
 
+// The search query comes from the dashboard toolbar, shared across tabs.
+const visible = computed(() =>
+  bookmarks.value.filter(
+    (bookmark) =>
+      !dash.needle ||
+      [bookmark.name, bookmark.url, bookmark.group].some((field) =>
+        field?.toLowerCase().includes(dash.needle),
+      ),
+  ),
+);
+
 const groups = computed(() => {
   const map = new Map<string, BookmarkInfo[]>();
-  for (const bookmark of bookmarks.value) {
+  for (const bookmark of visible.value) {
     const key = bookmark.group ?? '';
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(bookmark);
@@ -102,27 +115,17 @@ async function save(): Promise<void> {
 
 const bookmarkId = (bookmark: BookmarkInfo): string => String(bookmark.id);
 
-// Reorder within a group: UI bookmarks are renumbered globally after the
-// file-managed ones (whose order belongs to bookmarks.yml).
+// Reorder within a group: PUT the full new global order in one call — the
+// hub renumbers everything and mirrors it into bookmarks.yml.
 async function reorderGroup(group: string, ids: string[]): Promise<void> {
   const byId = new Map(bookmarks.value.map((b) => [String(b.id), b]));
   const newGroupOrder = ids
     .map((id) => byId.get(id))
     .filter((b): b is BookmarkInfo => !!b);
-  const uiSequence = groups.value
-    .flatMap(([g, list]) => (g === group ? newGroupOrder : list))
-    .filter((b) => b.source !== 'file');
-  const base =
-    Math.max(0, ...bookmarks.value.filter((b) => b.source === 'file').map((b) => b.position)) + 1;
-  await Promise.all(
-    uiSequence
-      .map((bookmark, index) =>
-        bookmark.position === base + index
-          ? null
-          : api.patchBookmark(bookmark.id, { position: base + index }),
-      )
-      .filter(Boolean),
+  const sequence = groups.value.flatMap(([g, list]) =>
+    g === group ? newGroupOrder : list,
   );
+  await api.orderBookmarks(sequence.map((b) => b.id));
   bookmarks.value = await api.bookmarks();
 }
 
@@ -141,19 +144,58 @@ async function remove(): Promise<void> {
 
 <template>
   <section v-if="loaded" class="bookmarks">
-    <header class="section-head">
-      <h2 v-if="!embedded" class="title">{{ t('bookmarks.title') }}</h2>
-      <span class="head-actions">
-        <BfButton
-          size="sm"
-          :variant="editing === 0 ? 'ghost' : undefined"
-          @click="editing = editing === 0 ? null : (openCreate(), 0)"
-        >
-          {{ editing === 0 ? `✕ ${t('bookmarks.cancel')}` : `+ ${t('bookmarks.add')}` }}
-        </BfButton>
-      </span>
+    <header v-if="!embedded" class="section-head">
+      <h2 class="title">{{ t('bookmarks.title') }}</h2>
     </header>
 
+    <p v-if="bookmarks.length === 0" class="empty">{{ t('bookmarks.empty') }}</p>
+    <p v-else-if="visible.length === 0" class="empty">{{ t('bookmarks.noMatches') }}</p>
+
+    <div v-for="[group, list] in groups" :key="group || '_'" class="group">
+      <h3 v-if="group" class="group-title">{{ group }}</h3>
+      <SortableList
+        class="grid bf-stagger"
+        :items="list"
+        :id-of="bookmarkId"
+        :disabled="dash.needle !== ''"
+        @reorder="(ids) => void reorderGroup(group, ids)"
+      >
+        <template #item="{ element: bookmark, index: i }">
+        <a
+          :href="bookmark.url"
+          target="_blank"
+          rel="noreferrer"
+          class="bookmark"
+          :style="{ '--i': i }"
+          :data-bf-tip="bookmark.url"
+        >
+          <span v-if="iconOf(bookmark)" class="icon">
+            <img
+              v-if="isImage(iconOf(bookmark)!)"
+              :src="iconOf(bookmark)!"
+              alt=""
+              loading="lazy"
+            />
+            <template v-else>{{ iconOf(bookmark) }}</template>
+          </span>
+          <span class="name">{{ bookmark.name }}</span>
+          <!-- Edits write through to bookmarks.yml on the hub;
+               customization only surfaces in global edit mode. -->
+          <button
+            v-if="ui.editing"
+            class="edit"
+            type="button"
+            :aria-label="t('bookmarks.edit')"
+            @click="openEdit(bookmark, $event)"
+          >
+            <BfIcon :path="mdiPencil" :size="11" />
+          </button>
+        </a>
+        </template>
+      </SortableList>
+    </div>
+
+    <!-- Creating and editing both happen down here, next to the button. -->
     <form
       v-if="editing !== null"
       class="form bf-rise-in"
@@ -183,50 +225,15 @@ async function remove(): Promise<void> {
       </BfButton>
     </form>
 
-    <p v-if="bookmarks.length === 0" class="empty">{{ t('bookmarks.empty') }}</p>
-
-    <div v-for="[group, list] in groups" :key="group || '_'" class="group">
-      <h3 v-if="group" class="group-title">{{ group }}</h3>
-      <SortableList
-        class="grid bf-stagger"
-        :items="list"
-        :id-of="bookmarkId"
-        @reorder="(ids) => void reorderGroup(group, ids)"
+    <footer class="foot">
+      <BfButton
+        size="sm"
+        :variant="editing === 0 ? 'ghost' : undefined"
+        @click="editing = editing === 0 ? null : (openCreate(), 0)"
       >
-        <template #item="{ element: bookmark, index: i }">
-        <a
-          :href="bookmark.url"
-          target="_blank"
-          rel="noreferrer"
-          class="bookmark"
-          :style="{ '--i': i }"
-          :data-bf-tip="bookmark.url"
-        >
-          <span v-if="iconOf(bookmark)" class="icon">
-            <img
-              v-if="isImage(iconOf(bookmark)!)"
-              :src="iconOf(bookmark)!"
-              alt=""
-              loading="lazy"
-            />
-            <template v-else>{{ iconOf(bookmark) }}</template>
-          </span>
-          <span class="name">{{ bookmark.name }}</span>
-          <!-- File-managed bookmarks are edited in bookmarks.yml, not here,
-               and customization only surfaces in global edit mode. -->
-          <button
-            v-if="ui.editing && bookmark.source !== 'file'"
-            class="edit"
-            type="button"
-            :aria-label="t('bookmarks.edit')"
-            @click="openEdit(bookmark, $event)"
-          >
-            <BfIcon :path="mdiPencil" :size="11" />
-          </button>
-        </a>
-        </template>
-      </SortableList>
-    </div>
+        {{ editing === 0 ? `✕ ${t('bookmarks.cancel')}` : `+ ${t('bookmarks.add')}` }}
+      </BfButton>
+    </footer>
   </section>
 </template>
 
@@ -239,10 +246,6 @@ async function remove(): Promise<void> {
   align-items: center;
   gap: 0.75rem;
   margin: 1rem 0 1.1rem;
-  flex-wrap: wrap;
-}
-.head-actions {
-  margin-left: auto;
 }
 .title {
   margin: 0;
@@ -257,7 +260,12 @@ async function remove(): Promise<void> {
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-top: 1.2rem;
+}
+.foot {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 1.2rem;
 }
 .field {
   font: inherit;
