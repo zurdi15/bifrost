@@ -83,3 +83,69 @@ async def resolve_icons(
         return {}
     index = await _load_index()
     return {name: index.get(flatten(name)) for name in requested}
+
+
+# ── Portal favicons: the node UI itself is the icon source ──────────────────
+# uuid → (expires_at, media_type, bytes) — None body caches the miss.
+_portal_cache: dict[str, tuple[float, str | None, bytes | None]] = {}
+
+FAVICON_PATHS = ("/favicon.svg", "/favicon.ico", "/favicon.png", "/apple-touch-icon.png")
+
+
+def _portal_base(session, node) -> str | None:  # noqa: ANN001
+    from sqlalchemy import select
+
+    from app.api.gateway import _endpoint_upstream
+    from app.models import EndpointCheck
+
+    if node.kind == "endpoint":
+        checks = list(
+            session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
+        )
+        upstream = _endpoint_upstream(checks)
+        if upstream is None:
+            return None
+        return f"http://{upstream[0]}:{upstream[1]}"
+    if node.ui_port:
+        return f"http://{node.name}:{node.ui_port}"
+    return None
+
+
+@router.get("/icons/portal/{uuid}")
+async def portal_icon(uuid: str):  # noqa: ANN201
+    from fastapi import HTTPException, Response
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import Node
+
+    cached = _portal_cache.get(uuid)
+    if cached and cached[0] > time.monotonic():
+        if cached[2] is None:
+            raise HTTPException(status_code=404)
+        return Response(content=cached[2], media_type=cached[1])
+
+    with session_scope() as session:
+        node = session.scalar(select(Node).where(Node.uuid == uuid))
+        base = _portal_base(session, node) if node else None
+
+    body: bytes | None = None
+    media: str | None = None
+    if base is not None:
+        async with httpx.AsyncClient(
+            timeout=6, transport=transport, verify=False, follow_redirects=True
+        ) as client:
+            for path in FAVICON_PATHS:
+                try:
+                    response = await client.get(base + path)
+                except httpx.HTTPError:
+                    continue
+                kind = response.headers.get("content-type", "")
+                if response.status_code == 200 and response.content and "text/html" not in kind:
+                    body = response.content
+                    media = kind or "image/x-icon"
+                    break
+    _portal_cache[uuid] = (time.monotonic() + CACHE_TTL_S, media, body)
+    if body is None:
+        raise HTTPException(status_code=404)
+    return Response(content=body, media_type=media)

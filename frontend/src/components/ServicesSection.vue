@@ -180,16 +180,28 @@ const groups = computed<Bucket[]>(() => {
   margin-top: 1.4rem;
 }
 .group-ui-link {
-  margin-left: 0.7rem;
-  font-size: 0.7rem;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.8rem;
+  padding: 0.22rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--bf-brand) 35%, transparent);
+  border-radius: var(--bf-radius-pill);
+  background: var(--bf-brand-tint);
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: 0.02em;
-  color: var(--bf-ink-muted);
+  color: var(--bf-brand);
   text-decoration: none;
+  transition:
+    border-color var(--bf-dur-150),
+    background-color var(--bf-dur-150);
 }
 .group-ui-link:hover {
-  color: var(--bf-brand);
+  border-color: var(--bf-brand);
+  background: color-mix(in srgb, var(--bf-brand-tint) 70%, var(--bf-brand));
+  color: var(--bf-ink-strong);
 }
 .group-title {
   margin: 1rem 0 0.6rem;

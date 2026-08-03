@@ -88,6 +88,11 @@ const autoIcon = computed(() =>
   props.container.meta.icon ? null : icons.iconFor(props.container),
 );
 const autoIconBroken = ref(false);
+const metaIconBroken = ref(false);
+watch(
+  () => props.container.meta.icon,
+  () => (metaIconBroken.value = false),
+);
 watch(autoIcon, () => (autoIconBroken.value = false));
 
 // ── customize (name/icon/url/group/hide overrides) ─────────────────────────
@@ -178,8 +183,14 @@ async function save(): Promise<void> {
           <BfIcon :path="mdiPencil" :size="12" />
         </button>
         <div class="head">
-          <span v-if="container.meta.icon" class="icon">
-            <img v-if="iconIsImage" :src="container.meta.icon" alt="" loading="lazy" />
+          <span v-if="container.meta.icon && !metaIconBroken" class="icon">
+            <img
+              v-if="iconIsImage"
+              :src="container.meta.icon"
+              alt=""
+              loading="lazy"
+              @error="metaIconBroken = true"
+            />
             <template v-else>{{ container.meta.icon }}</template>
           </span>
           <span v-else-if="container.source === 'node'" class="icon node-glyph">
@@ -315,11 +326,14 @@ async function save(): Promise<void> {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Node UIs are machines, not apps: rack-strip look — accent edge, tinted
-   surface, no footer (the name IS the node). */
+/* Node UIs are machines, not apps: chassis look — faint horizontal vents
+   across the surface, no footer (the name IS the node). */
 .container-card.node-ui {
-  border-inline-start: 2px solid var(--bf-brand);
-  background: color-mix(in srgb, var(--bf-brand-tint) 30%, var(--bf-surface));
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--bf-line) 45%, transparent) 5px 6px
+  );
 }
 .container-card.node-ui .foot {
   display: none;

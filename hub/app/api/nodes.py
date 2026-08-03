@@ -88,6 +88,7 @@ def endpoint_services_list(session: Session) -> list[dict]:
                 "meta": (
                     ({"url": f"https://{host}"} if host else {})
                     | ({"group": "nodes"} if source == "node" else {})
+                    | ({"icon": f"/api/v1/icons/portal/{node.uuid}"} if source == "node" else {})
                 ),
                 "started_at": None,
                 "cpu_pct": None,
