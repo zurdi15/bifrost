@@ -3,22 +3,54 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.ingest import protocol as proto
 from app.models import Container, Disk, FsMount, ServiceOverride, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
-META_KEYS = ("name", "icon", "url", "group", "hide", "port")
+META_KEYS = ("name", "icon", "url", "group", "hide", "port", "expose")
+BOOL_KEYS = ("hide", "expose")
 
 
 def extract_bifrost_meta(labels: dict[str, str]) -> dict:
-    """bifrost.* labels → widget metadata. `hide` is boolean, rest are strings."""
+    """bifrost.* labels → widget metadata. `hide`/`expose` are boolean, rest
+    are strings."""
     meta: dict = {}
     for key in META_KEYS:
         value = labels.get(BIFROST_LABEL_PREFIX + key)
         if value is None:
             continue
-        meta[key] = value.lower() in ("true", "1", "yes") if key == "hide" else value
+        meta[key] = value.lower() in ("true", "1", "yes") if key in BOOL_KEYS else value
     return meta
+
+
+def published_tcp_ports(ports: list[str]) -> list[int]:
+    """Distinct host-published TCP ports: "8085:8080/tcp" → 8085. Tolerates a
+    bind address prefix ("0.0.0.0:8085:8080"); "2019/tcp" alone is unpublished."""
+    out: list[int] = []
+    for entry in ports:
+        spec, _, proto = entry.partition("/")
+        if proto not in ("", "tcp"):
+            continue
+        parts = spec.split(":")
+        if len(parts) >= 2 and parts[-2].isdigit() and int(parts[-2]) not in out:
+            out.append(int(parts[-2]))
+    return out
+
+
+def derive_url(container: Container, meta: dict, domain: str) -> str | None:
+    """Convention URL for label-less services: https://<name>.<domain>.
+
+    Only when unambiguous — the container can opt out with
+    bifrost.expose=false, and it needs bifrost.port or exactly one published
+    TCP port; routing to "one of several" would be a guess."""
+    if not domain or meta.get("url") or meta.get("expose") is False:
+        return None
+    if not meta.get("port"):
+        published = published_tcp_ports(json.loads(container.ports_json or "[]"))
+        if len(published) != 1:
+            return None
+    return f"https://{container.name}.{domain}"
 
 
 def collapse_override(values: dict, label_meta: dict) -> dict:
@@ -69,6 +101,10 @@ def serialize_container(
     node_name: str,
     override: ServiceOverride | None = None,
 ) -> dict:
+    meta = merge_override(json.loads(container.bifrost_meta_json or "{}"), override)
+    derived = derive_url(container, meta, settings.service_domain)
+    if derived:
+        meta["url"] = derived
     return {
         "id": container.container_id,
         "name": container.name,
@@ -76,7 +112,7 @@ def serialize_container(
         "state": container.state,
         "health": container.health,
         "ports": json.loads(container.ports_json or "[]"),
-        "meta": merge_override(json.loads(container.bifrost_meta_json or "{}"), override),
+        "meta": meta,
         "started_at": container.started_at,
         "cpu_pct": container.cpu_pct,
         "mem_pct": container.mem_pct,

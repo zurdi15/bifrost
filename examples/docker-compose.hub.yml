@@ -10,6 +10,9 @@ services:
       BIFROST_ENROLL_TOKEN: change-me
       # false → new agents wait as 'pending' until approved in the UI
       BIFROST_AUTO_APPROVE: "true"
+      # gateway domain: auto-derive https://<container>.<domain> for services
+      # with an unambiguous port (see env.template)
+      # BIFROST_SERVICE_DOMAIN: example.net
     volumes:
       - ./data:/data
       # Declarative bookmarks: with /data bind-mounted like above, just drop

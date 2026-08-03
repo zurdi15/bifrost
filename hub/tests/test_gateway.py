@@ -1,7 +1,23 @@
 import json
 
+from app.config import settings
+from app.db import session_scope
+from app.models import K8sCluster, K8sIngress
 from tests.conftest import agent_headers, hello_frame
 from tests.test_containers import containers_full_frame, wait_for
+
+
+def container(name: str, ports: list[str], labels: dict[str, str]) -> dict:
+    return {
+        "container_id": f"id-{name}",
+        "name": name,
+        "image": f"{name}/latest",
+        "state": "running",
+        "health": "",
+        "ports": ports,
+        "labels": labels,
+        "started_at": 1700000000,
+    }
 
 ROMM = {
     "container_id": "abc123",
@@ -88,3 +104,74 @@ def test_gateway_routes(client):
         )
         routes = client.get("/api/v1/gateway/routes?domain=lab.example").json()
         assert [r["host"] for r in routes] == ["games.lab.example", "grafana.lab.example"]
+
+
+def test_gateway_derived_routes(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(
+            containers_full_frame(
+                1,
+                [
+                    # single published port, zero labels → derived
+                    container("jelly", ["8096:8096/tcp"], {}),
+                    # two published ports, no hint → ambiguous, skipped
+                    container("torrent", ["9091:9091/tcp", "51413:51413/tcp"], {}),
+                    # bifrost.port resolves the ambiguity → derived
+                    container("minio", ["9000:9000/tcp", "9001:9001/tcp"], {"bifrost.port": "9001"}),
+                    # opted out
+                    container("private", ["8080:80/tcp"], {"bifrost.expose": "false"}),
+                    # explicit URL still wins over the convention name
+                    container("named", ["7000:80/tcp"], {"bifrost.url": "https://pretty.lab.example"}),
+                ],
+            )
+        )
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+
+        routes = client.get("/api/v1/gateway/routes").json()
+        assert routes == [
+            {"host": "jelly.lab.example", "node": "testnode", "port": 8096, "container": "jelly"},
+            {"host": "minio.lab.example", "node": "testnode", "port": 9001, "container": "minio"},
+            {"host": "pretty.lab.example", "node": "testnode", "port": 7000, "container": "named"},
+        ]
+
+        # The card shows the same derived URL the gateway routes.
+        cards = {c["name"]: c["meta"] for c in client.get("/api/v1/containers").json()}
+        assert cards["jelly"]["url"] == "https://jelly.lab.example"
+        assert "url" not in cards["torrent"]
+        assert "url" not in cards["private"]
+
+
+def test_gateway_derived_yields_to_ingress(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(
+            containers_full_frame(
+                2,
+                [
+                    container("jelly", ["8096:8096/tcp"], {}),
+                    container("named", ["7000:80/tcp"], {"bifrost.url": "https://romm.lab.example"}),
+                ],
+            )
+        )
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+        with session_scope() as s:
+            cluster = K8sCluster(name="k3s")
+            s.add(cluster)
+            s.flush()
+            # jelly already served by an Ingress; romm too, but explicit wins.
+            s.add(
+                K8sIngress(
+                    cluster_id=cluster.id,
+                    namespace="apps",
+                    name="media",
+                    hosts_json='["jelly.lab.example", "romm.lab.example"]',
+                )
+            )
+
+        hosts = [r["host"] for r in client.get("/api/v1/gateway/routes").json()]
+        assert hosts == ["romm.lab.example"]

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Heartbeat cadence agents must honor; misses drive degraded/offline states.
     heartbeat_interval_s: int = 15
 
+    # Gateway domain: when set, label-less Docker services with an unambiguous
+    # port get https://<container>.<domain> as card URL and gateway route.
+    # Empty (the default) disables all URL derivation.
+    service_domain: str = ""
+
     # Metric history retention per resolution.
     retention_raw_h: int = 24
     retention_1m_d: int = 14
