@@ -144,3 +144,12 @@ body {
 ::view-transition-group(bf-dock) {
   z-index: 30;
 }
+
+/* Snapshots lose the radius clip on the dock's backdrop blur (square-corner
+   flash while the transition runs) — round and clip the captured images too. */
+::view-transition-group(bf-dock),
+::view-transition-old(bf-dock),
+::view-transition-new(bf-dock) {
+  border-radius: var(--bf-radius-pill);
+  overflow: clip;
+}
