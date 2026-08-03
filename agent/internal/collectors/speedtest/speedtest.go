@@ -87,7 +87,7 @@ func Run(ctx context.Context) (float64, float64, float64, error) {
 	// Download: one sustained single-stream read against a large test file —
 	// a burst of small requests trips Cloudflare's per-IP rate limiter (429),
 	// so Cloudflare is only the fallback, in capped 25MB chunks.
-	received, elapsed := timedDownload(ctx, client, "https://speed.hetzner.de/10GB.bin")
+	received, elapsed := timedDownload(ctx, client, "https://fsn1-speed.hetzner.com/10GB.bin")
 	if received == 0 {
 		downCtx, cancelDown := context.WithTimeout(ctx, phaseDuration)
 		for downCtx.Err() == nil {
