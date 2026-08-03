@@ -129,7 +129,10 @@ async function save(): Promise<void> {
     <BfCard
       :interactive="!editing && !!container.meta.url"
       class="container-card"
-      :class="{ 'is-down': status === 'offline' || status === 'disabled' }"
+      :class="{
+        'is-down': status === 'offline' || status === 'disabled',
+        'node-ui': container.source === 'node',
+      }"
     >
       <form v-if="editing" class="edit-form" @submit.prevent="save" @click.stop>
         <input v-model="form.name" class="field" :placeholder="t('service.name')" />
@@ -311,6 +314,18 @@ async function save(): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Node UIs are machines, not apps: rack-strip look — accent edge, tinted
+   surface, no footer (the name IS the node). */
+.container-card.node-ui {
+  border-inline-start: 2px solid var(--bf-brand);
+  background: color-mix(in srgb, var(--bf-brand-tint) 30%, var(--bf-surface));
+}
+.container-card.node-ui .foot {
+  display: none;
+}
+.container-card.node-ui .image {
+  color: var(--bf-ink-muted);
 }
 .foot {
   display: flex;

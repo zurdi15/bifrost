@@ -31,9 +31,23 @@ const matchesQuery = (container: ContainerInfo): boolean =>
 
 const filtered = computed(() =>
   [...live.containerList, ...(dash.showHidden ? live.hiddenContainers : [])].filter(
-    (c) => (!dash.nodeFilter || c.node_uuid === dash.nodeFilter) && matchesQuery(c),
+    (c) =>
+      (!dash.nodeFilter || c.node_uuid === dash.nodeFilter) &&
+      matchesQuery(c) &&
+      // Grouped by node, the bucket header carries the node UI link — a card
+      // for the node inside its own bucket would say nothing new.
+      !(dash.groupMode === 'node' && c.source === 'node'),
   ),
 );
+
+// node name → its UI link, for the by-node bucket headers.
+const nodeUiUrls = computed(() => {
+  const map = new Map<string, string>();
+  for (const node of live.nodeList) {
+    if (node.ui_url) map.set(node.name, node.ui_url);
+  }
+  return map;
+});
 
 interface Bucket {
   key: string;
@@ -105,7 +119,18 @@ const groups = computed<Bucket[]>(() => {
     </p>
 
     <div v-for="(bucket, gi) in groups" :key="bucket.key || '_'" class="group">
-      <h3 v-if="bucket.label" class="group-title">{{ bucket.label }}</h3>
+      <h3 v-if="bucket.label" class="group-title">
+        {{ bucket.label }}
+        <a
+          v-if="dash.groupMode === 'node' && nodeUiUrls.get(bucket.label)"
+          :href="nodeUiUrls.get(bucket.label)"
+          target="_blank"
+          rel="noopener"
+          class="group-ui-link bf-metric"
+        >
+          {{ nodeUiUrls.get(bucket.label)?.replace(/^https?:\/\//, '') }} ↗
+        </a>
+      </h3>
       <SortableList
         class="grid bf-stagger"
         :items="bucket.list"
@@ -153,6 +178,18 @@ const groups = computed<Bucket[]>(() => {
 /* Breathing room between a group and the next (incl. the ungrouped tail). */
 .group + .group {
   margin-top: 1.4rem;
+}
+.group-ui-link {
+  margin-left: 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--bf-ink-muted);
+  text-decoration: none;
+}
+.group-ui-link:hover {
+  color: var(--bf-brand);
 }
 .group-title {
   margin: 1rem 0 0.6rem;
