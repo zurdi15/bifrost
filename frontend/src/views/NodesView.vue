@@ -18,7 +18,12 @@ const layout = useLayoutStore();
 const loading = computed(() => live.connection === 'connecting' && live.nodeList.length === 0);
 const downCount = computed(() => live.downNodes.length);
 const nodeId = (node: NodeInfo): string => node.uuid;
-const orderedNodes = computed(() => layout.apply('nodes', live.nodeList, nodeId));
+const agentNodes = computed(() => live.nodeList.filter((n) => n.kind !== 'endpoint'));
+const endpointNodes = computed(() => live.nodeList.filter((n) => n.kind === 'endpoint'));
+const orderedNodes = computed(() => layout.apply('nodes', agentNodes.value, nodeId));
+const orderedEndpoints = computed(() =>
+  layout.apply('endpoints', endpointNodes.value, nodeId),
+);
 </script>
 
 <template>
@@ -67,6 +72,22 @@ const orderedNodes = computed(() => layout.apply('nodes', live.nodeList, nodeId)
         </RouterLink>
       </template>
     </SortableList>
+
+    <template v-if="orderedEndpoints.length > 0">
+      <h3 class="subtitle">{{ t('nodes.endpoints') }}</h3>
+      <SortableList
+        class="grid bf-stagger"
+        :items="orderedEndpoints"
+        :id-of="nodeId"
+        @reorder="(ids) => layout.setOrder('endpoints', ids)"
+      >
+        <template #item="{ element: node, index: i }">
+          <RouterLink :to="`/nodes/${node.uuid}`" class="card-link" :style="{ '--i': i }">
+            <NodeCard :node="node" />
+          </RouterLink>
+        </template>
+      </SortableList>
+    </template>
   </section>
 </template>
 
@@ -113,6 +134,14 @@ const orderedNodes = computed(() => layout.apply('nodes', live.nodeList, nodeId)
   display: flex;
   align-items: center;
   gap: 0.7rem;
+}
+.subtitle {
+  margin: 1.6rem 0 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--bf-ink-muted);
 }
 .empty {
   color: var(--bf-ink-muted);

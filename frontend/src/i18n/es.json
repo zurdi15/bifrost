@@ -7,7 +7,8 @@
     "lastSeen": "visto por última vez",
     "uptime": "uptime",
     "approve": "aprobar",
-    "openUrl": "abrir dashboard"
+    "openUrl": "abrir dashboard",
+    "endpoints": "Endpoints"
   },
   "status": {
     "online": "activo",
