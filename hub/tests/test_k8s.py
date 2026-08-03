@@ -344,3 +344,22 @@ def test_k8s_detected_registers_cluster(client):
             or None
         )
     assert len(client.get("/api/v1/k8s/clusters").json()) == 1
+
+
+def test_node_api_address(monkeypatch):
+    from app.k8s import discovery
+
+    # Resolvable node name wins over a NAT-mangled peer address.
+    monkeypatch.setattr(discovery.socket, "gethostbyname", lambda n: "192.168.1.152")
+    assert discovery.node_api_address("gg", "172.20.0.1") == "192.168.1.152"
+
+    # Loopback resolution (hosts-file artifact) is ignored.
+    monkeypatch.setattr(discovery.socket, "gethostbyname", lambda n: "127.0.1.1")
+    assert discovery.node_api_address("gg", "172.20.0.1") == "172.20.0.1"
+
+    # Unresolvable name falls back to the peer address.
+    def boom(_name):
+        raise OSError("no dns")
+
+    monkeypatch.setattr(discovery.socket, "gethostbyname", boom)
+    assert discovery.node_api_address("gg", "10.0.0.5") == "10.0.0.5"

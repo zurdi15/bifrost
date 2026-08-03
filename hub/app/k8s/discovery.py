@@ -1,6 +1,7 @@
 """Auto-registration of clusters reported by agents via k8s_detected."""
 
 import logging
+import socket
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +13,22 @@ from app.models import K8sCluster, Node
 logger = logging.getLogger("bifrost.k8s")
 
 
+def node_api_address(node_name: str, peer_address: str) -> str:
+    """Address to substitute for a localhost API server URL.
+
+    Prefer resolving the node's name: the WebSocket peer address is mangled to
+    a docker bridge gateway IP when the hub's published port goes through the
+    userland proxy, and an API URL pointing at the hub's own bridge is
+    unreachable. Fall back to the peer address when the name doesn't resolve."""
+    try:
+        addr = socket.gethostbyname(node_name)
+        if not addr.startswith("127."):
+            return addr
+    except OSError:
+        pass
+    return peer_address
+
+
 def register_discovered_cluster(
     session: Session, node: Node, msg: proto.K8sDetected, node_address: str
 ) -> tuple[K8sCluster, bool]:
@@ -21,6 +38,7 @@ def register_discovered_cluster(
     localhost API server URL is rewritten to the address the agent connected
     from. Without one, the row waits for credentials from the UI."""
     name = f"{msg.distro or 'k8s'}@{node.name}"
+    node_address = node_api_address(node.name, node_address)
     cluster = session.scalar(
         select(K8sCluster).where(
             K8sCluster.source == "discovered", K8sCluster.discovered_node_id == node.id
