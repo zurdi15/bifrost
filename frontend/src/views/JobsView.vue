@@ -87,11 +87,16 @@ function cronjobStatus(cronjob: CronJob): string {
   return 'new';
 }
 
-function clusterTone(cluster: Cluster): 'up' | 'warn' | 'down' | 'unknown' {
+function clusterStatus(cluster: Cluster): string {
   if (!cluster.enabled) return 'unknown';
-  if (cluster.status === 'ok') return 'up';
-  if (cluster.status?.startsWith('error')) return 'down';
-  return 'warn';
+  if (cluster.status === 'ok') return 'online';
+  if (cluster.status?.startsWith('error')) return 'offline';
+  return 'degraded';
+}
+
+function clusterTip(cluster: Cluster): string {
+  const state = t(`status.${clusterStatus(cluster)}`);
+  return cluster.has_credentials ? state : `${state} · ${t('jobs.needsCreds')}`;
 }
 
 function formatDuration(seconds: number | null): string {
@@ -107,10 +112,15 @@ function formatDuration(seconds: number | null): string {
     <header class="section-head">
       <h2 class="title">{{ t('jobs.title') }}</h2>
       <span class="clusters">
-        <BfChip v-for="cluster in clusters" :key="cluster.id" :tone="clusterTone(cluster)" mono>
-          {{ cluster.name }}
-          <template v-if="!cluster.has_credentials"> · {{ t('jobs.needsCreds') }}</template>
-        </BfChip>
+        <span
+          v-for="cluster in clusters"
+          :key="cluster.id"
+          class="cluster bf-tip-bottom"
+          :data-bf-tip="clusterTip(cluster)"
+        >
+          <BfStatusDot :status="clusterStatus(cluster)" :size="8" />
+          <span class="cluster-name bf-metric">{{ cluster.name }}</span>
+        </span>
       </span>
     </header>
 
@@ -200,9 +210,18 @@ function formatDuration(seconds: number | null): string {
 }
 .clusters {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.8rem;
   margin-left: auto;
   flex-wrap: wrap;
+}
+.cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cluster-name {
+  font-size: 0.74rem;
+  color: var(--bf-ink-secondary);
 }
 .empty {
   color: var(--bf-ink-muted);

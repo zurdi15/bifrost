@@ -14,7 +14,6 @@ import BfCard from '@/lib/structural/BfCard.vue';
 import BfGauge from '@/lib/data/BfGauge.vue';
 import BfSparkline from '@/lib/data/BfSparkline.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
-import { statusToken } from '@/tokens';
 import { useLiveStore } from '@/stores/live';
 import { useMetricsStore } from '@/stores/metrics';
 import { formatBps, formatClock, formatUptime } from '@/utils/format';
@@ -189,11 +188,10 @@ onMounted(async () => {
     </RouterLink>
 
     <header class="hero" :style="{ viewTransitionName: `node-${node.uuid}` }">
-      <BfStatusDot :status="node.status" :desync-id="node.uuid" :size="12" />
+      <span class="bf-tip-bottom" :data-bf-tip="t(`status.${node.status}`)">
+        <BfStatusDot :status="node.status" :desync-id="node.uuid" :size="12" />
+      </span>
       <h1 class="name">{{ node.name }}</h1>
-      <BfChip :tone="(statusToken[node.status] as any) ?? 'unknown'" mono>
-        {{ t(`status.${node.status}`) }}
-      </BfChip>
       <span class="meta bf-metric">
         <template v-if="node.os">{{ node.os }} · </template>
         <template v-if="node.arch">{{ node.arch }} · </template>

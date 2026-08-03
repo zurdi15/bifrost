@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
+import BfStatusDot from '@/lib/data/BfStatusDot.vue';
 import { useLiveStore } from '@/stores/live';
 
 interface RouteCheck {
@@ -47,6 +48,14 @@ interface GatewayReport {
 }
 
 const { t } = useI18n();
+
+function checkTip(check: RouteCheck): string {
+  if (!check.ok) return t('gateway.down');
+  const parts = [`HTTP ${check.status}`];
+  if (check.latency_ms != null) parts.push(`${Math.round(check.latency_ms)} ms`);
+  if (check.cert_days != null) parts.push(`cert ${check.cert_days}d`);
+  return parts.join(' · ');
+}
 const live = useLiveStore();
 
 const report = ref<GatewayReport | null>(null);
@@ -116,9 +125,19 @@ watch(() => live.k8sVersion, load);
             <span class="where">{{ route.container }}</span>
             <BfChip tone="neutral" mono>{{ route.node }}</BfChip>
             <span class="port bf-metric">:{{ route.port }}</span>
-            <BfChip v-if="route.check" :tone="route.check.ok ? 'up' : 'down'" mono>
-              {{ route.check.ok ? `${Math.round(route.check.latency_ms ?? 0)} ms` : t('gateway.down') }}
-            </BfChip>
+            <span
+              v-if="route.check"
+              class="bf-tip-bottom check-dot"
+              :data-bf-tip="checkTip(route.check)"
+            >
+              <BfStatusDot :status="route.check.ok ? 'online' : 'offline'" :size="8" />
+            </span>
+            <span
+              v-if="route.check?.ok && route.check.latency_ms != null"
+              class="latency bf-metric"
+            >
+              {{ Math.round(route.check.latency_ms) }} ms
+            </span>
             <BfChip
               v-if="route.check?.cert_days != null && route.check.cert_days <= 14"
               tone="warn"
@@ -270,6 +289,14 @@ watch(() => live.k8sVersion, load);
   color: var(--bf-ink-secondary);
 }
 .detail {
+  font-size: 0.72rem;
+  color: var(--bf-ink-muted);
+}
+.check-dot {
+  display: inline-flex;
+  align-items: center;
+}
+.latency {
   font-size: 0.72rem;
   color: var(--bf-ink-muted);
 }
