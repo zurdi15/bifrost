@@ -14,6 +14,7 @@ import httpx
 from sqlalchemy import select
 
 from app.bus import Event, EventBus
+from app.config import settings
 from app.db import session_scope
 from app.events import _severity
 from app.models import AlertRule
@@ -34,7 +35,8 @@ def render_message(event: Event) -> tuple[str, str]:
     data = event.data
     if event.topic == "node.status":
         status = data.get("status", "?")
-        return (f"Node {data.get('uuid', '?')[:8]} is {status.upper()}", f"status → {status}")
+        who = data.get("name") or data.get("uuid", "?")[:8]
+        return (f"Node {who} is {status.upper()}", f"status → {status}")
     if event.topic == "k8s.cronjob.run":
         name = data.get("cronjob", "?")
         if data.get("succeeded"):
@@ -54,8 +56,24 @@ def render_message(event: Event) -> tuple[str, str]:
             data.get("image") or "",
         )
     if event.topic == "endpoint.status":
+        if data.get("kind") == "cert":
+            return (
+                f"Certificate for {data.get('host')} expires in {data.get('cert_days')}d",
+                "renewal is due",
+            )
         ok = data.get("ok")
+        if "host" in data:
+            status = data.get("status")
+            return (
+                f"Service {data.get('host')} is {'UP' if ok else 'DOWN'}",
+                f"HTTP {status}" if status else "unreachable through the gateway",
+            )
         return (f"Endpoint {'up' if ok else 'DOWN'}", data.get("uuid", ""))
+    if event.topic == "image.update":
+        return (
+            f"Update available: {data.get('image')}",
+            f"latest {data.get('latest')}",
+        )
     return (event.topic, json.dumps(data)[:300])
 
 
@@ -72,6 +90,15 @@ async def send_notification(rule: AlertRule, event: Event) -> None:
                     "Priority": "high" if severity == "warning" else "default",
                     "Tags": "warning" if severity == "warning" else "information_source",
                 },
+            )
+        elif rule.notifier == "telegram":
+            # rule.target is the chat id; the bot token is hub-level config.
+            token = settings.telegram_bot_token
+            if not token:
+                raise RuntimeError("BIFROST_TELEGRAM_BOT_TOKEN is not set")
+            response = await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": rule.target, "text": f"{title}\n{body}".strip()},
             )
         else:  # webhook
             response = await client.post(

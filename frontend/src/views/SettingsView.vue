@@ -97,11 +97,18 @@ async function test(rule: AlertRule): Promise<void> {
         <select v-model="draft.notifier" class="field">
           <option value="ntfy">ntfy</option>
           <option value="webhook">webhook</option>
+          <option value="telegram">telegram</option>
         </select>
         <input
           v-model="draft.target"
           class="field target bf-metric"
-          :placeholder="draft.notifier === 'ntfy' ? 'https://ntfy.sh/mi-topic' : 'https://…/webhook'"
+          :placeholder="
+            draft.notifier === 'ntfy'
+              ? 'https://ntfy.sh/mi-topic'
+              : draft.notifier === 'telegram'
+                ? 'chat id (p.ej. -100123456789)'
+                : 'https://…/webhook'
+          "
           required
         />
         <BfButton size="sm" variant="primary">{{ t('alerts.add') }}</BfButton>

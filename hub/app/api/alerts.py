@@ -20,6 +20,7 @@ VALID_KINDS = {
     "disk.updated",
     "endpoint.status",
     "k8s.cluster.discovered",
+    "image.update",
 }
 
 
@@ -53,8 +54,8 @@ class RuleCreate(BaseModel):
 def _validate(body: RuleCreate) -> None:
     if body.kind not in VALID_KINDS:
         raise HTTPException(status_code=422, detail=f"unknown kind {body.kind}")
-    if body.notifier not in ("ntfy", "webhook"):
-        raise HTTPException(status_code=422, detail="notifier must be ntfy or webhook")
+    if body.notifier not in ("ntfy", "webhook", "telegram"):
+        raise HTTPException(status_code=422, detail="notifier must be ntfy, webhook or telegram")
     if body.min_severity not in ("info", "warning"):
         raise HTTPException(status_code=422, detail="min_severity must be info or warning")
 

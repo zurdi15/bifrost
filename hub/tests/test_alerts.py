@@ -150,3 +150,44 @@ def test_rule_test_endpoint(client, monkeypatch):
         alerts, "transport", httpx.MockTransport(lambda r: httpx.Response(500))
     )
     assert client.post(f"/api/v1/alert-rules/{rule['id']}/test").status_code == 502
+
+
+def test_telegram_notifier(client, monkeypatch):
+    sent: list[httpx.Request] = []
+
+    def capture(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200)
+
+    monkeypatch.setattr(alerts, "transport", httpx.MockTransport(capture))
+    monkeypatch.setattr(alerts.settings, "telegram_bot_token", "123:ABC")
+
+    client.post(
+        "/api/v1/alert-rules",
+        json={"name": "tg", "kind": "node.status", "notifier": "telegram",
+              "target": "-100555"},
+    )
+    engine = alerts.AlertEngine()
+
+    async def scenario():
+        await engine.handle(
+            make_event(
+                "node.status", {"uuid": "abc123", "status": "offline", "name": "asgard"}
+            )
+        )
+        assert len(sent) == 1
+        request = sent[0]
+        assert str(request.url) == "https://api.telegram.org/bot123:ABC/sendMessage"
+        payload = json.loads(request.content)
+        assert payload["chat_id"] == "-100555"
+        assert "asgard" in payload["text"] and "OFFLINE" in payload["text"]
+
+    asyncio.run(scenario())
+
+
+def test_telegram_rejected_without_token(client):
+    response = client.post(
+        "/api/v1/alert-rules",
+        json={"name": "bad", "kind": "*", "notifier": "smoke", "target": "x"},
+    )
+    assert response.status_code == 422

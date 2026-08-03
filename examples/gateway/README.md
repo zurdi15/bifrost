@@ -68,15 +68,15 @@ for anything unusual).
 
 ## Kubernetes too?
 
-Ingress-managed services route themselves if you add a catch-all as the last
-vhost — the wildcard forwards anything not matched above to the cluster's
-ingress controller, which routes by Host header:
+Ingress-managed services route themselves: swap the wildcard site's final
+`handle` for a proxy to the cluster's ingress controller, which routes by
+Host header:
 
 ```caddyfile
-*.example.net {
-	import cloudflare_tls
-	reverse_proxy <ingress-controller-ip>:80
-}
+	handle {
+		reverse_proxy <ingress-controller-ip>:80
+	}
 ```
 
-Priority ends up: hand-written vhost → generated Docker route → k8s ingress.
+Priority ends up: hand-written vhost → generated Docker route → k8s ingress —
+all subdomains under the one wildcard certificate.

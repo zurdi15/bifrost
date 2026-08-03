@@ -111,7 +111,11 @@ def gateway_report(
     """Routing diagnosis for the dashboard: the routes plus every container
     left out and why, and the cluster Ingresses the gateway's wildcard
     already serves — together, the full hostname → backend map."""
+    from app.checks import services as service_checks
+
     routes, excluded = _diagnose(session, domain)
+    for route in routes:
+        route["check"] = service_checks.results.get(route["host"])
     ingresses = []
     for ingress in session.scalars(select(K8sIngress).order_by(K8sIngress.name)):
         for host in json.loads(ingress.hosts_json or "[]"):

@@ -6,6 +6,14 @@ import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import { useLiveStore } from '@/stores/live';
 
+interface RouteCheck {
+  ok: boolean;
+  status: number | null;
+  latency_ms: number | null;
+  cert_days: number | null;
+  checked_at: number;
+}
+
 interface GatewayRoute {
   host: string;
   node: string;
@@ -13,6 +21,7 @@ interface GatewayRoute {
   container: string;
   source: 'explicit' | 'derived';
   hide: boolean;
+  check?: RouteCheck | null;
 }
 
 interface GatewayExcluded {
@@ -101,6 +110,16 @@ watch(() => live.k8sVersion, load);
             <span class="where">{{ route.container }}</span>
             <BfChip tone="neutral" mono>{{ route.node }}</BfChip>
             <span class="port bf-metric">:{{ route.port }}</span>
+            <BfChip v-if="route.check" :tone="route.check.ok ? 'up' : 'down'" mono>
+              {{ route.check.ok ? `${Math.round(route.check.latency_ms ?? 0)} ms` : t('gateway.down') }}
+            </BfChip>
+            <BfChip
+              v-if="route.check?.cert_days != null && route.check.cert_days <= 14"
+              tone="warn"
+              mono
+            >
+              cert {{ route.check.cert_days }}d
+            </BfChip>
           </div>
         </BfCard>
       </div>

@@ -27,6 +27,10 @@ def _severity(topic: str, data: dict) -> str:
         return "warning"
     if topic == "k8s.cronjob.run" and not data.get("succeeded"):
         return "warning"
+    if topic == "endpoint.status" and (
+        not data.get("ok", True) or data.get("kind") == "cert"
+    ):
+        return "warning"
     if topic == "disk.updated" and any(
         d.get("smart_status") == "failed" for d in data.get("disks", [])
     ):

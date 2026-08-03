@@ -121,11 +121,14 @@ def serialize_container(
     node_name: str,
     override: ServiceOverride | None = None,
 ) -> dict:
+    from app.updates import watcher as updates
+
     meta = merge_override(json.loads(container.bifrost_meta_json or "{}"), override)
     derived = derive_url(container, meta, settings.service_domain)
     if derived:
         meta["url"] = derived
     return {
+        "update": updates.results.get(container.image or ""),
         "id": container.container_id,
         "name": container.name,
         "image": container.image,

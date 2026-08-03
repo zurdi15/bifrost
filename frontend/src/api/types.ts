@@ -59,6 +59,8 @@ export interface ContainerInfo {
   node_name: string;
   /** 'docker' container or 'k8s' workload — both render as service cards. */
   source?: 'docker' | 'k8s';
+  /** Newer semver tag available upstream, when the update watch found one. */
+  update?: string | null;
 }
 
 export interface BookmarkInfo {

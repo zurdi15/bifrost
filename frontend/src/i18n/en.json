@@ -166,6 +166,7 @@
       "no_port": "no routable port",
       "duplicate_host": "hostname already taken by another container",
       "bad_url": "bifrost.url is not a valid URL"
-    }
+    },
+    "down": "DOWN"
   }
 }

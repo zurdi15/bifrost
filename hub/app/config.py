@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Heartbeat cadence agents must honor; misses drive degraded/offline states.
     heartbeat_interval_s: int = 15
 
+    # Telegram bot token for the 'telegram' alert notifier (rule target = chat id).
+    telegram_bot_token: str = ""
+
     # Gateway domain: when set, label-less Docker services with an unambiguous
     # port get https://<container>.<domain> as card URL and gateway route.
     # Empty (the default) disables all URL derivation.

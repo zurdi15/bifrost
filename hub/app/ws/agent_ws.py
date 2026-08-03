@@ -42,7 +42,8 @@ def set_node_status(bus: EventBus, node_uuid: str, status: str) -> None:
             return
         node.status = status
         node.last_seen = now_ts()
-    bus.publish("node.status", {"uuid": node_uuid, "status": status})
+        name = node.name
+    bus.publish("node.status", {"uuid": node_uuid, "status": status, "name": name})
 
 
 def _effective_ts(agent_ts: int) -> int:

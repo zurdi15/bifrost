@@ -166,6 +166,7 @@
       "no_port": "sin puerto enrutable",
       "duplicate_host": "hostname ya ocupado por otro contenedor",
       "bad_url": "bifrost.url no es una URL válida"
-    }
+    },
+    "down": "CAÍDO"
   }
 }

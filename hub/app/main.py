@@ -23,11 +23,13 @@ from app.api import widgets as widgets_api
 from app.bookmarks_file import bookmarks_file_watcher
 from app.bus import EventBus
 from app.checks.runner import checks_runner
+from app.checks.services import service_checks
 from app.config import settings
 from app.db import init_engine
 from app.events import events_recorder
 from app.k8s.watcher import K8sManager
 from app.metrics.store import MetricsStore
+from app.updates.watcher import update_watch
 from app.ws import agent_ws, ui_ws
 from app.ws.registry import AgentRegistry
 
@@ -73,6 +75,8 @@ def create_app() -> FastAPI:
             asyncio.create_task(agent_ws.heartbeat_monitor(app.state), name="heartbeat-monitor"),
             asyncio.create_task(checks_runner(app.state), name="checks-runner"),
             asyncio.create_task(alerts_engine(app.state.bus), name="alerts-engine"),
+            asyncio.create_task(service_checks(app.state.bus), name="service-checks"),
+            asyncio.create_task(update_watch(app.state.bus), name="update-watch"),
             asyncio.create_task(
                 bookmarks_file_watcher(app.state.bus), name="bookmarks-file"
             ),

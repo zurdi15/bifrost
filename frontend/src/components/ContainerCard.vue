@@ -179,6 +179,9 @@ async function save(): Promise<void> {
             </span>
             <p class="image bf-metric" :data-bf-tip="container.image ?? undefined">
               <span class="image-text">{{ shortImage }}</span>
+              <BfChip v-if="container.update" tone="warn" mono class="update">
+                → {{ container.update }}
+              </BfChip>
             </p>
           </div>
         </div>
@@ -282,6 +285,10 @@ async function save(): Promise<void> {
   margin: 0;
   font-size: 0.66rem;
   color: var(--bf-ink-muted);
+}
+.update {
+  margin-left: 0.4rem;
+  flex: none;
 }
 .image-text {
   display: block;
