@@ -80,10 +80,14 @@ def _diagnose(session: Session, domain: str | None) -> tuple[list[dict], list[di
         if host in routes:
             excluded.append({**entry, "reason": "duplicate_host", "detail": host})
             continue
+        path = meta.get("path") or ""
+        if path and not path.startswith("/"):
+            path = "/" + path
         routes[host] = {
             **entry,
             "host": host,
             "port": int(port),
+            "path": path or None,
             "source": "explicit" if explicit else "derived",
             "hide": meta.get("hide") is True,
         }
@@ -99,7 +103,13 @@ def gateway_routes(
     to or under it."""
     routes, _ = _diagnose(session, domain)
     return [
-        {"host": r["host"], "node": r["node"], "port": r["port"], "container": r["container"]}
+        {
+            "host": r["host"],
+            "node": r["node"],
+            "port": r["port"],
+            "container": r["container"],
+            "path": r["path"],
+        }
         for r in routes
     ]
 

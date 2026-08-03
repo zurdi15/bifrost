@@ -8,7 +8,7 @@ from app.ingest import protocol as proto
 from app.models import Container, Disk, FsMount, ServiceOverride, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
-META_KEYS = ("name", "icon", "url", "group", "hide", "port", "expose")
+META_KEYS = ("name", "icon", "url", "group", "hide", "port", "expose", "path")
 BOOL_KEYS = ("hide", "expose")
 
 
@@ -70,7 +70,10 @@ def derive_url(container: Container, meta: dict, domain: str) -> str | None:
         )
         if len(ports) != 1:
             return None
-    return f"https://{container.name}.{domain}"
+    path = meta.get("path") or ""
+    if path and not path.startswith("/"):
+        path = "/" + path
+    return f"https://{container.name}.{domain}{path}"
 
 
 def collapse_override(values: dict, label_meta: dict) -> dict:

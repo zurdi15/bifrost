@@ -89,14 +89,27 @@ def test_gateway_routes(client):
 
         routes = client.get("/api/v1/gateway/routes").json()
         assert routes == [
-            {"host": "blog.other.example", "node": "testnode", "port": 8081, "container": "blog"},
+            {
+                "host": "blog.other.example",
+                "node": "testnode",
+                "port": 8081,
+                "container": "blog",
+                "path": None,
+            },
             {
                 "host": "grafana.lab.example",
                 "node": "testnode",
                 "port": 3000,
                 "container": "grafana",
+                "path": None,
             },
-            {"host": "romm.lab.example", "node": "testnode", "port": 8085, "container": "romm"},
+            {
+                "host": "romm.lab.example",
+                "node": "testnode",
+                "port": 8085,
+                "container": "romm",
+                "path": None,
+            },
         ]
 
         filtered = client.get("/api/v1/gateway/routes?domain=lab.example").json()
@@ -139,9 +152,27 @@ def test_gateway_derived_routes(client, monkeypatch):
 
         routes = client.get("/api/v1/gateway/routes").json()
         assert routes == [
-            {"host": "jelly.lab.example", "node": "testnode", "port": 8096, "container": "jelly"},
-            {"host": "minio.lab.example", "node": "testnode", "port": 9001, "container": "minio"},
-            {"host": "pretty.lab.example", "node": "testnode", "port": 7000, "container": "named"},
+            {
+                "host": "jelly.lab.example",
+                "node": "testnode",
+                "port": 8096,
+                "container": "jelly",
+                "path": None,
+            },
+            {
+                "host": "minio.lab.example",
+                "node": "testnode",
+                "port": 9001,
+                "container": "minio",
+                "path": None,
+            },
+            {
+                "host": "pretty.lab.example",
+                "node": "testnode",
+                "port": 7000,
+                "container": "named",
+                "path": None,
+            },
         ]
 
         # The card shows the same derived URL the gateway routes.
@@ -214,7 +245,7 @@ def test_gateway_report(client, monkeypatch):
     }
         # The machine feed keeps its stable four-field shape.
         feed = client.get("/api/v1/gateway/routes").json()
-        assert set(feed[0].keys()) == {"host", "node", "port", "container"}
+        assert set(feed[0].keys()) == {"host", "node", "port", "container", "path"}
         assert report["ingresses"] == []
 
 
@@ -268,3 +299,31 @@ def test_gateway_report_lists_cluster_ingresses(client, monkeypatch):
         assert report["ingresses"] == [
             {"host": "media.lab.example", "namespace": "apps", "name": "media", "tls": True}
         ]
+
+
+def test_gateway_path_meta(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(
+            containers_full_frame(
+                1,
+                [
+                    container(
+                        "pihole",
+                        ["8080:80/tcp"],
+                        {"bifrost.port": "8080", "bifrost.path": "/admin/"},
+                    )
+                ],
+            )
+        )
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+
+        # The card URL lands on the path; the route carries it for the
+        # gateway to redirect the bare root.
+        cards = {c["name"]: c["meta"] for c in client.get("/api/v1/containers").json()}
+        assert cards["pihole"]["url"] == "https://pihole.lab.example/admin/"
+        feed = client.get("/api/v1/gateway/routes").json()
+        assert feed[0]["path"] == "/admin/"
+        assert feed[0]["port"] == 8080

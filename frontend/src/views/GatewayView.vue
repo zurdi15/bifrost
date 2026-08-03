@@ -21,6 +21,7 @@ interface GatewayRoute {
   container: string;
   source: 'explicit' | 'derived';
   hide: boolean;
+  path?: string | null;
   check?: RouteCheck | null;
 }
 
@@ -99,8 +100,13 @@ watch(() => live.k8sVersion, load);
           :style="{ '--i': i }"
         >
           <div class="row">
-            <a class="host" :href="`https://${route.host}`" target="_blank" rel="noopener">
-              {{ route.host }}
+            <a
+              class="host"
+              :href="`https://${route.host}${route.path ?? ''}`"
+              target="_blank"
+              rel="noopener"
+            >
+              {{ route.host }}<span v-if="route.path" class="path">{{ route.path }}</span>
             </a>
             <BfChip :tone="route.source === 'derived' ? 'unknown' : 'neutral'">
               {{ route.source === 'derived' ? t('gateway.derived') : t('gateway.explicit') }}
@@ -238,6 +244,10 @@ watch(() => live.k8sVersion, load);
 }
 .host:hover {
   text-decoration: underline;
+}
+.path {
+  color: var(--bf-ink-muted);
+  font-weight: 500;
 }
 .name {
   font-weight: 600;

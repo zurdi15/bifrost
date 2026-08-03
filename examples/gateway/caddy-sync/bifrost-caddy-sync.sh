@@ -70,8 +70,10 @@ for r in routes:
         print(f"skipping {r['host']}: cannot resolve node {r['node']}", file=sys.stderr)
         continue
     m = "bf_" + re.sub(r"[^A-Za-z0-9_]", "_", r["host"])
+    # bifrost.path redirects the bare root, mirroring a hand-written redir.
+    redirect = f"\n\tredir / {r['path']} 302" if r.get("path") else ""
     lines.append(
-        f"\n@{m} host {r['host']}\nhandle @{m} {{\n\treverse_proxy {addr}:{r['port']}\n}}"
+        f"\n@{m} host {r['host']}\nhandle @{m} {{{redirect}\n\treverse_proxy {addr}:{r['port']}\n}}"
     )
 print("\n".join(lines))
 PY
