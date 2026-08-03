@@ -21,6 +21,22 @@ def extract_bifrost_meta(labels: dict[str, str]) -> dict:
     return meta
 
 
+def collapse_override(values: dict, label_meta: dict) -> dict:
+    """Drop override fields that just repeat the label-derived meta.
+
+    Storing them would pin the value forever: the row silently beats any later
+    label change (e.g. un-hiding in the UI left a sticky hide=false that made
+    a subsequent bifrost.hide=true label a no-op)."""
+    for field, value in values.items():
+        if value is None:
+            continue
+        key = "group" if field == "group_name" else field
+        inherited = label_meta.get(key, False) if key == "hide" else label_meta.get(key)
+        if value == inherited:
+            values[field] = None
+    return values
+
+
 def merge_override(meta: dict, override: ServiceOverride | None) -> dict:
     """UI-set overrides win over bifrost.* label meta; NULL fields inherit."""
     if override is None:

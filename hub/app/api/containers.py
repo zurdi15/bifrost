@@ -1,11 +1,13 @@
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.ingest.handlers import list_node_containers, serialize_container
+from app.ingest.handlers import collapse_override, list_node_containers, serialize_container
 from app.models import Container, Node, ServiceOverride
 
 router = APIRouter()
@@ -66,7 +68,8 @@ def put_container_meta(
     session: Session = Depends(get_session),
 ) -> dict:
     """Full replace of the UI overrides for one service. Empty/absent fields
-    fall back to the bifrost.* labels; an all-empty body removes the row."""
+    fall back to the bifrost.* labels, and so do fields that merely repeat
+    them; an all-empty body removes the row."""
     node = session.scalar(select(Node).where(Node.uuid == node_uuid))
     if node is None:
         raise HTTPException(404)
@@ -76,13 +79,22 @@ def put_container_meta(
             ServiceOverride.container_name == container_name,
         )
     )
-    values = {
-        "name": (body.name or "").strip() or None,
-        "icon": (body.icon or "").strip() or None,
-        "url": (body.url or "").strip() or None,
-        "group_name": (body.group or "").strip() or None,
-        "hide": body.hide,
-    }
+    container = session.scalar(
+        select(Container).where(
+            Container.node_id == node.id, Container.name == container_name
+        )
+    )
+    label_meta = json.loads(container.bifrost_meta_json or "{}") if container else {}
+    values = collapse_override(
+        {
+            "name": (body.name or "").strip() or None,
+            "icon": (body.icon or "").strip() or None,
+            "url": (body.url or "").strip() or None,
+            "group_name": (body.group or "").strip() or None,
+            "hide": body.hide,
+        },
+        label_meta,
+    )
     if all(v is None for v in values.values()):
         if override is not None:
             session.delete(override)

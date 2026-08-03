@@ -149,6 +149,35 @@ def test_service_override_meta(client):
     assert client.put("/api/v1/containers/nope/romm/meta", json={}).status_code == 404
 
 
+def test_override_repeating_labels_collapses(client):
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        node_uuid = json.loads(ws.receive_text())["node_uuid"]
+        ws.send_text(containers_full_frame(1, [ROMM]))
+        wait_for(lambda: client.get("/api/v1/containers").json() or None)
+
+        # Saving the customize form untouched resends the merged meta verbatim.
+        # None of it is an override, so nothing may be stored...
+        updated = client.put(
+            f"/api/v1/containers/{node_uuid}/romm/meta",
+            json={"url": "https://romm.example", "group": "media", "hide": False},
+        ).json()
+        assert updated["meta"] == {
+            "url": "https://romm.example",
+            "group": "media",
+            "hide": False,
+        }
+
+        # ...otherwise a sticky hide=false would make this label change a no-op.
+        relabeled = dict(ROMM, labels=dict(ROMM["labels"], **{"bifrost.hide": "true"}))
+        ws.send_text(containers_full_frame(2, [relabeled]))
+        wait_for(
+            lambda: (
+                lambda cs: cs if cs and cs[0]["meta"]["hide"] is True else None
+            )(client.get("/api/v1/containers").json())
+        )
+
+
 def test_container_stats_applied(client):
     with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
         ws.send_text(hello_frame())
