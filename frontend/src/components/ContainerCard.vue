@@ -228,8 +228,8 @@ async function save(): Promise<void> {
 }
 .update-wrap {
   position: absolute;
-  top: 0.55rem;
-  right: 2rem;
+  top: 2rem;
+  right: 0.6rem;
   display: inline-flex;
   color: var(--bf-status-warn);
 }
