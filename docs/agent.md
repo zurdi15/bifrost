@@ -42,6 +42,14 @@ devices: ["/dev/sda", "/dev/sdb", "/dev/nvme0"]
 On NAS UIs (TerraMaster TOS, Synology…) where mapping devices one by one is painful,
 `privileged: true` is the documented fallback.
 
+## Odd boxes
+
+On NAS/ARM machines whose data filesystem cannot host overlayfs (docker pull
+fails mounting image layers with `invalid argument`), set
+`"storage-driver": "vfs"` in `/etc/docker/daemon.json` and restart the
+daemon. vfs skips copy-on-write — slower and hungrier on disk, but perfectly
+fine for the single agent container.
+
 ## Identity
 
 `fingerprint = sha256(/etc/machine-id)` (fallback: hostname + sorted MACs). The agent keeps
