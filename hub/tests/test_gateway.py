@@ -366,3 +366,22 @@ def test_gateway_endpoint_routes(client, monkeypatch):
     assert [(r["host"], r["node"], r["port"]) for r in routes] == [
         ("casa.lab.example", "haos-box", 8123)
     ]
+
+
+def test_endpoint_appears_as_dashboard_service(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    client.post(
+        "/api/v1/nodes/endpoints",
+        json={"name": "haos", "checks": [{"kind": "http", "target": "http://haos-box:8123"}]},
+    )
+    from app.api.nodes import endpoint_services_list
+    from app.db import session_scope as scope
+
+    with scope() as session:
+        cards = endpoint_services_list(session)
+    assert len(cards) == 1
+    card = cards[0]
+    assert card["name"] == "haos"
+    assert card["meta"]["url"] == "https://haos.lab.example"
+    assert card["source"] == "endpoint"
+    assert card["image"] == "http://haos-box:8123"

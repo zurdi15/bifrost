@@ -34,6 +34,51 @@ def node_to_dict(node: Node, registry: AgentRegistry, checks: list | None = None
     }
 
 
+def endpoint_services_list(session: Session) -> list[dict]:
+    """Routable endpoints shaped like dashboard service cards: the check
+    target is the subtitle, the gateway hostname is the click-through."""
+    from urllib.parse import urlparse
+
+    from app.api.gateway import _endpoint_upstream
+    from app.config import settings
+    from app.models import EndpointCheck
+
+    out = []
+    for node in session.scalars(
+        select(Node).where(Node.kind == "endpoint").order_by(Node.name)
+    ):
+        checks = list(
+            session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
+        )
+        if _endpoint_upstream(checks) is None:
+            continue
+        host = None
+        if node.url:
+            host = urlparse(node.url).hostname
+        if host is None and settings.service_domain:
+            host = f"{node.name}.{settings.service_domain}"
+        out.append(
+            {
+                "id": f"endpoint-{node.uuid}",
+                "name": node.name,
+                "image": checks[0].target if checks else None,
+                "state": "running" if node.status == "online" else "exited",
+                "health": "",
+                "ports": [],
+                "meta": {"url": f"https://{host}"} if host else {},
+                "started_at": None,
+                "cpu_pct": None,
+                "mem_pct": None,
+                "mem_bytes": None,
+                "updated_at": now_ts(),
+                "node_uuid": node.uuid,
+                "node_name": node.name,
+                "source": "endpoint",
+            }
+        )
+    return out
+
+
 def _checks_for(session: Session, node: Node) -> list | None:
     if node.kind != "endpoint":
         return None
@@ -77,7 +122,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
         "nodes": [node_to_dict(n, registry, _checks_for(session, n)) for n in nodes],
         "containers": containers_by_node(session),
         "disks": disks_by_node(session),
-        "k8s_services": k8s_services_list(session),
+        "k8s_services": k8s_services_list(session) + endpoint_services_list(session),
     }
 
 

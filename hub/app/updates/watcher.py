@@ -98,8 +98,17 @@ async def sweep_once(bus: EventBus | None = None) -> None:
                 fresh[ref] = newer[1]
                 if bus is not None and results.get(ref) != newer[1]:
                     bus.publish("image.update", {"image": ref, "latest": newer[1]})
+    changed = fresh != dict(results)
     results.clear()
     results.update(fresh)
+    # The dashboard rides containers.updated events — without a broadcast the
+    # fresh update glyphs would only appear after each agent's next reconnect.
+    if changed and bus is not None:
+        from app.api.containers import containers_by_node
+
+        with session_scope() as session:
+            for node_uuid, containers in containers_by_node(session).items():
+                bus.publish("containers.updated", {"uuid": node_uuid, "containers": containers})
 
 
 async def update_watch(bus: EventBus) -> None:

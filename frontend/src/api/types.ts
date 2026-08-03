@@ -57,8 +57,8 @@ export interface ContainerInfo {
   updated_at: number;
   node_uuid: string;
   node_name: string;
-  /** 'docker' container or 'k8s' workload — both render as service cards. */
-  source?: 'docker' | 'k8s';
+  /** 'docker' container, 'k8s' workload or routable 'endpoint' — all render as cards. */
+  source?: 'docker' | 'k8s' | 'endpoint';
   /** Newer semver tag available upstream, when the update watch found one. */
   update?: string | null;
 }

@@ -164,7 +164,7 @@ async function save(): Promise<void> {
         <!-- k8s services take their meta from labels/annotations, not UI edits.
              Customization is an edit-mode affordance, not everyday chrome. -->
         <button
-          v-if="ui.editing && container.source !== 'k8s'"
+          v-if="ui.editing && container.source === 'docker'"
           class="edit"
           type="button"
           :aria-label="t('service.edit')"
