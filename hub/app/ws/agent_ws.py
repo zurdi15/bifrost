@@ -154,6 +154,12 @@ async def agent_ws(ws: WebSocket) -> None:
         node.os = hello.os or node.os
         node.arch = hello.arch or node.arch
         node.agent_version = hello.agent_version or node.agent_version
+        # Agent env is declarative config: it wins when present, and an unset
+        # env leaves UI/API-set values untouched.
+        if hello.ui_port:
+            node.ui_port = hello.ui_port
+        if hello.ui_url:
+            node.url = hello.ui_url
         node.boot_ts = hello.boot_ts or node.boot_ts
         node.last_seen = now_ts()
         previous_status = node.status

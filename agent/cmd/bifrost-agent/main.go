@@ -60,6 +60,9 @@ func main() {
 		version, cfg.NodeName, runtime.GOOS, runtime.GOARCH, bootTS, caps,
 	)
 
+	hello.UIPort = cfg.UIPort
+	hello.UIUrl = cfg.UIUrl
+
 	client, err := transport.NewClient(cfg.HubURL, cfg.EnrollToken, system.Fingerprint(), hello)
 	if err != nil {
 		slog.Error("invalid hub url", "err", err)

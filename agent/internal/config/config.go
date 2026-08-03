@@ -19,6 +19,9 @@ type Config struct {
 	// Download target for speedtests; latency/upload always use Cloudflare
 	// anycast (nearest PoP). Pick a well-connected file server near you.
 	SpeedtestURL string
+	// Node UI declared at deploy time (a NAS dashboard, HAOS, …).
+	UIPort int
+	UIUrl  string
 }
 
 func FromEnv() (*Config, error) {
@@ -35,6 +38,13 @@ func FromEnv() (*Config, error) {
 	if speedtestURL == "" {
 		speedtestURL = "https://fsn1-speed.hetzner.com/10GB.bin"
 	}
+	uiPort := 0
+	if raw := os.Getenv("BIFROST_AGENT_UI_PORT"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			uiPort = parsed
+		}
+	}
+	uiURL := os.Getenv("BIFROST_AGENT_UI_URL")
 	name := os.Getenv("BIFROST_AGENT_NODE_NAME")
 	if name == "" {
 		name = hostHostname()
@@ -53,6 +63,8 @@ func FromEnv() (*Config, error) {
 		HubURL:          hubURL,
 		EnrollToken:     token,
 		SpeedtestURL:    speedtestURL,
+		UIPort:          uiPort,
+		UIUrl:           uiURL,
 		NodeName:        name,
 		MetricsInterval: interval,
 	}, nil

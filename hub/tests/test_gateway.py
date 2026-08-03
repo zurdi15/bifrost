@@ -419,3 +419,19 @@ def test_gateway_node_ui_port_routes(client, monkeypatch):
         nodes = client.get("/api/v1/nodes").json()
         nas = next(n for n in nodes if n["uuid"] == node_uuid)
         assert nas["ui_url"] == "https://nas.lab.example"
+
+
+def test_agent_declared_ui_port(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    frame = json.loads(hello_frame(hostname="nas2"))
+    frame["ui_port"] = 9999
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(json.dumps(frame))
+        node_uuid = json.loads(ws.receive_text())["node_uuid"]
+        ws.send_text(containers_full_frame(1, []))
+
+        routes = client.get("/api/v1/gateway/routes").json()
+        assert [(r["host"], r["port"]) for r in routes] == [("nas2.lab.example", 9999)]
+        nodes = client.get("/api/v1/nodes").json()
+        nas = next(n for n in nodes if n["uuid"] == node_uuid)
+        assert nas["ui_port"] == 9999

@@ -21,6 +21,9 @@ type Hello struct {
 	// Current seq counter position; 0 on a fresh process so the hub resets
 	// its dedup position instead of dropping every new frame.
 	StartSeq uint64 `json:"start_seq"`
+	// Declarative node UI; zero values mean "not declared".
+	UIPort int    `json:"ui_port,omitempty"`
+	UIUrl  string `json:"ui_url,omitempty"`
 }
 
 type Sample struct {

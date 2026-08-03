@@ -46,6 +46,10 @@ class Hello(_Msg):
     # (stateless) agent declares 0 so the hub resets its dedup position
     # instead of discarding every new frame as a duplicate.
     start_seq: int = 0
+    # Declarative node UI (BIFROST_AGENT_UI_PORT / _UI_URL): applied to the
+    # node when set, left alone when zero/empty.
+    ui_port: int = 0
+    ui_url: str = ""
 
 
 class Sample(_Msg):
