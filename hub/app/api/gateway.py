@@ -17,9 +17,25 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_session
 from app.ingest.handlers import derive_url, merge_override, routable_tcp_ports
-from app.models import Container, K8sIngress, Node, ServiceOverride
+from app.models import Container, EndpointCheck, K8sIngress, Node, ServiceOverride
 
 router = APIRouter()
+
+
+def _endpoint_upstream(checks: list) -> tuple[str, int] | None:
+    """(host, port) a gateway can dial, from the first http/tcp check.
+    https targets are skipped for now — the generated route proxies plain
+    HTTP upstream."""
+    for check in checks:
+        if check.check_kind == "http":
+            parsed = urlparse(check.target)
+            if parsed.hostname and parsed.scheme == "http":
+                return parsed.hostname, parsed.port or 80
+        elif check.check_kind == "tcp":
+            host, _, port = check.target.rpartition(":")
+            if host and port.isdigit():
+                return host, int(port)
+    return None
 
 
 def _diagnose(session: Session, domain: str | None) -> tuple[list[dict], list[dict]]:
@@ -90,6 +106,40 @@ def _diagnose(session: Session, domain: str | None) -> tuple[list[dict], list[di
             "path": path or None,
             "source": "explicit" if explicit else "derived",
             "hide": meta.get("hide") is True,
+        }
+    for node in session.scalars(
+        select(Node).where(Node.kind == "endpoint").order_by(Node.name)
+    ):
+        checks = list(
+            session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
+        )
+        upstream = _endpoint_upstream(checks)
+        if upstream is None:
+            continue
+        entry = {"container": node.name, "node": node.name}
+        explicit = node.url or None
+        host = urlparse(explicit).hostname if explicit else None
+        if host is None:
+            if not settings.service_domain:
+                continue
+            host = f"{node.name}.{settings.service_domain}"
+            if host in ingress_hosts:
+                excluded.append({**entry, "reason": "ingress_conflict", "detail": host})
+                continue
+        if domain and host != domain and not host.endswith("." + domain):
+            continue
+        if host in routes:
+            excluded.append({**entry, "reason": "duplicate_host", "detail": host})
+            continue
+        upstream_host, upstream_port = upstream
+        routes[host] = {
+            "container": node.name,
+            "node": upstream_host,
+            "host": host,
+            "port": upstream_port,
+            "path": None,
+            "source": "explicit" if explicit else "derived",
+            "hide": False,
         }
     return sorted(routes.values(), key=lambda r: r["host"]), excluded
 

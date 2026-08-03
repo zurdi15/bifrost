@@ -115,15 +115,6 @@ watch(
     <!-- Agentless endpoints: checks instead of system metrics. -->
     <ul v-if="node.kind === 'endpoint'" class="checks">
       <li v-for="check in node.checks ?? []" :key="check.id" class="check">
-        <span
-          class="bf-tip-bottom check-dot"
-          :data-bf-tip="check.last_ok === null ? '—' : check.last_ok ? t('status.online') : t('status.offline')"
-        >
-          <BfStatusDot
-            :status="check.last_ok === null ? 'unknown' : check.last_ok ? 'online' : 'offline'"
-            :size="8"
-          />
-        </span>
         <span class="check-kind bf-metric">{{ check.kind }}</span>
         <span class="target bf-metric">{{ check.target }}</span>
         <span v-if="check.last_latency_ms !== null" class="latency bf-metric">
@@ -284,10 +275,6 @@ watch(
   margin: 0;
   font-size: 0.75rem;
   color: var(--bf-status-down);
-}
-.check-dot {
-  display: inline-flex;
-  align-items: center;
 }
 .check-kind {
   font-size: 0.7rem;

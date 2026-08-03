@@ -327,3 +327,42 @@ def test_gateway_path_meta(client, monkeypatch):
         feed = client.get("/api/v1/gateway/routes").json()
         assert feed[0]["path"] == "/admin/"
         assert feed[0]["port"] == 8080
+
+
+def test_gateway_endpoint_routes(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    created = client.post(
+        "/api/v1/nodes/endpoints",
+        json={"name": "haos", "checks": [{"kind": "http", "target": "http://haos-box:8123"}]},
+    ).json()
+
+    # Derived: <node-name>.<domain>, upstream from the check target.
+    routes = client.get("/api/v1/gateway/routes").json()
+    assert routes == [
+        {
+            "host": "haos.lab.example",
+            "node": "haos-box",
+            "port": 8123,
+            "container": "haos",
+            "path": None,
+        }
+    ]
+
+    # An explicit node URL renames the route and wins over ingress conflicts.
+    client.patch(f"/api/v1/nodes/{created["uuid"]}", json={"url": "https://casa.lab.example"})
+    with session_scope() as s:
+        cluster = K8sCluster(name="k3s")
+        s.add(cluster)
+        s.flush()
+        s.add(
+            K8sIngress(
+                cluster_id=cluster.id,
+                namespace="apps",
+                name="casa",
+                hosts_json='["casa.lab.example"]',
+            )
+        )
+    routes = client.get("/api/v1/gateway/routes").json()
+    assert [(r["host"], r["node"], r["port"]) for r in routes] == [
+        ("casa.lab.example", "haos-box", 8123)
+    ]
