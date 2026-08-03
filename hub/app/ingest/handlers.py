@@ -38,17 +38,37 @@ def published_tcp_ports(ports: list[str]) -> list[int]:
     return out
 
 
+def routable_tcp_ports(ports: list[str], network_mode: str | None) -> list[int]:
+    """Ports a gateway can dial. Normally the host-published mappings; for
+    host-network containers the EXPOSE'd ports — the app listens on the host
+    directly, so "4096/tcp" IS reachable there (and only there)."""
+    if network_mode != "host":
+        return published_tcp_ports(ports)
+    out: list[int] = []
+    for entry in ports:
+        spec, _, proto = entry.partition("/")
+        if proto not in ("", "tcp"):
+            continue
+        parts = spec.split(":")
+        cand = parts[0] if len(parts) == 1 else parts[-2]
+        if cand.isdigit() and int(cand) not in out:
+            out.append(int(cand))
+    return out
+
+
 def derive_url(container: Container, meta: dict, domain: str) -> str | None:
     """Convention URL for label-less services: https://<name>.<domain>.
 
     Only when unambiguous — the container can opt out with
-    bifrost.expose=false, and it needs bifrost.port or exactly one published
+    bifrost.expose=false, and it needs bifrost.port or exactly one routable
     TCP port; routing to "one of several" would be a guess."""
     if not domain or meta.get("url") or meta.get("expose") is False:
         return None
     if not meta.get("port"):
-        published = published_tcp_ports(json.loads(container.ports_json or "[]"))
-        if len(published) != 1:
+        ports = routable_tcp_ports(
+            json.loads(container.ports_json or "[]"), container.network_mode
+        )
+        if len(ports) != 1:
             return None
     return f"https://{container.name}.{domain}"
 
@@ -146,6 +166,7 @@ def apply_containers_full(
         row.health = info.health
         row.ports_json = json.dumps(info.ports)
         row.labels_json = json.dumps(info.labels)
+        row.network_mode = info.network_mode or None
         row.bifrost_meta_json = json.dumps(extract_bifrost_meta(info.labels))
         row.started_at = info.started_at
         row.updated_at = ts

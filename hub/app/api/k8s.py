@@ -117,7 +117,10 @@ def delete_cluster(
 
 # Namespaces whose workloads stay off the services dashboard unless they
 # carry explicit bifrost.* meta — nobody wants coredns as a "service".
-SYSTEM_NAMESPACES = {"kube-system", "kube-public", "kube-node-lease"}
+# Plumbing namespaces: workloads here are infrastructure (GitOps, PKI), not
+# services — hidden from the dashboard unless they carry explicit bifrost.*
+# meta to opt back in.
+SYSTEM_NAMESPACES = {"kube-system", "kube-public", "kube-node-lease", "argocd", "cert-manager"}
 
 
 def _ingress_urls(session: Session) -> dict[tuple[int, str], list[tuple[set[str], str]]]:

@@ -56,6 +56,7 @@ class Container(Base):
     health: Mapped[str | None]
     ports_json: Mapped[str | None]
     labels_json: Mapped[str | None]
+    network_mode: Mapped[str | None]  # "host" → EXPOSE'd ports are host ports
     bifrost_meta_json: Mapped[str | None]  # {icon,url,group,hide} from bifrost.* labels
     started_at: Mapped[int | None]
     cpu_pct: Mapped[float | None]

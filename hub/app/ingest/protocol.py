@@ -85,6 +85,9 @@ class ContainerInfo(_Msg):
     ports: StrList = []
     labels: StrMap = {}
     started_at: int = 0
+    # "host" containers list their EXPOSE'd ports in `ports` (they listen on
+    # the host directly); additive field, absent from older agents.
+    network_mode: str = ""
 
 
 class ContainersFull(_Msg):

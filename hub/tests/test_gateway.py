@@ -208,3 +208,56 @@ def test_gateway_report(client, monkeypatch):
         # The machine feed keeps its stable four-field shape.
         feed = client.get("/api/v1/gateway/routes").json()
         assert set(feed[0].keys()) == {"host", "node", "port", "container"}
+        assert report["ingresses"] == []
+
+
+def test_gateway_host_network_exposed_port(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(
+            containers_full_frame(
+                1,
+                [
+                    # host network: the EXPOSE'd port is the host port.
+                    {**container("zerobyte", ["4096/tcp"], {}), "network_mode": "host"},
+                    # bridge network: an exposed-unpublished port is unreachable.
+                    container("bridgetool", ["2019/tcp"], {}),
+                ],
+            )
+        )
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+
+        routes = client.get("/api/v1/gateway/routes").json()
+        assert [(r["host"], r["port"]) for r in routes] == [("zerobyte.lab.example", 4096)]
+        report = client.get("/api/v1/gateway/report").json()
+        reasons = {e["container"]: e["reason"] for e in report["excluded"]}
+        assert reasons["bridgetool"] == "no_ports"
+
+
+def test_gateway_report_lists_cluster_ingresses(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(containers_full_frame(1, [container("jelly", ["8096:8096/tcp"], {})]))
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+        with session_scope() as s:
+            cluster = K8sCluster(name="k3s")
+            s.add(cluster)
+            s.flush()
+            s.add(
+                K8sIngress(
+                    cluster_id=cluster.id,
+                    namespace="apps",
+                    name="media",
+                    hosts_json='["media.lab.example"]',
+                    tls=True,
+                )
+            )
+
+        report = client.get("/api/v1/gateway/report").json()
+        assert report["ingresses"] == [
+            {"host": "media.lab.example", "namespace": "apps", "name": "media", "tls": True}
+        ]

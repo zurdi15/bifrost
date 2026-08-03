@@ -78,6 +78,9 @@ type apiContainer struct {
 		PublicPort  int    `json:"PublicPort"`
 		Type        string `json:"Type"`
 	} `json:"Ports"`
+	HostConfig struct {
+		NetworkMode string `json:"NetworkMode"`
+	} `json:"HostConfig"`
 }
 
 func (c *Client) List(ctx context.Context) ([]protocol.ContainerInfo, error) {
@@ -101,7 +104,16 @@ func (c *Client) List(ctx context.Context) ([]protocol.ContainerInfo, error) {
 	}
 	out := make([]protocol.ContainerInfo, 0, len(raw))
 	for _, ac := range raw {
-		out = append(out, toInfo(ac))
+		info := toInfo(ac)
+		// Host-network containers publish nothing, so the list API reports no
+		// ports; their EXPOSE'd ports are what the app listens on — fetch them
+		// so the hub can route label-less services there too.
+		if info.NetworkMode == "host" && len(info.Ports) == 0 {
+			if exposed, err := c.exposedPorts(ctx, ac.ID); err == nil {
+				info.Ports = exposed
+			}
+		}
+		out = append(out, info)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -140,7 +152,41 @@ func toInfo(ac apiContainer) protocol.ContainerInfo {
 		Ports:       ports,
 		Labels:      ac.Labels,
 		StartedAt:   ac.Created,
+		NetworkMode: ac.HostConfig.NetworkMode,
 	}
+}
+
+// exposedPorts inspects one container for its Config.ExposedPorts keys
+// ("4096/tcp"), sorted for stable payloads.
+func (c *Client) exposedPorts(ctx context.Context, id string) ([]string, error) {
+	req, err := http.NewRequestWithContext(
+		ctx, http.MethodGet, c.base+"/containers/"+id+"/json", nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("containers/%s/json: HTTP %d", id, resp.StatusCode)
+	}
+	var raw struct {
+		Config struct {
+			ExposedPorts map[string]struct{} `json:"ExposedPorts"`
+		} `json:"Config"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+	ports := make([]string, 0, len(raw.Config.ExposedPorts))
+	for port := range raw.Config.ExposedPorts {
+		ports = append(ports, port)
+	}
+	sort.Strings(ports)
+	return ports, nil
 }
 
 // Event is a docker container lifecycle event.

@@ -148,6 +148,8 @@
     "title": "Gateway",
     "routed": "Routed services",
     "excluded": "Not routed",
+    "cluster": "Cluster (Ingress)",
+    "noIngresses": "No cluster Ingresses known.",
     "noDomain": "No service domain configured — set BIFROST_SERVICE_DOMAIN on the hub so label-less containers get https://<name>.<domain> URLs and the gateway feed.",
     "noRoutes": "No routed Docker services yet — label a container with bifrost.url, or publish a single TCP port and let the convention name it.",
     "allRouted": "Every eligible container is routed.",

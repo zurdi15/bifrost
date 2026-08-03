@@ -68,6 +68,9 @@ type ContainerInfo struct {
 	Ports       []string          `json:"ports"`
 	Labels      map[string]string `json:"labels"`
 	StartedAt   int64             `json:"started_at"`
+	// "host" containers list their EXPOSE'd ports in Ports — they listen on
+	// the host directly. Additive field; the hub defaults it to empty.
+	NetworkMode string `json:"network_mode,omitempty"`
 }
 
 type ContainersFull struct {

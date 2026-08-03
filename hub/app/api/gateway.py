@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_session
-from app.ingest.handlers import derive_url, merge_override, published_tcp_ports
+from app.ingest.handlers import derive_url, merge_override, routable_tcp_ports
 from app.models import Container, K8sIngress, Node, ServiceOverride
 
 router = APIRouter()
@@ -48,7 +48,9 @@ def _diagnose(session: Session, domain: str | None) -> tuple[list[dict], list[di
         )
         entry = {"container": container.name, "node": node.name}
         explicit = meta.get("url")
-        published = published_tcp_ports(json.loads(container.ports_json or "[]"))
+        published = routable_tcp_ports(
+            json.loads(container.ports_json or "[]"), container.network_mode
+        )
         port = meta.get("port") or (published[0] if published else None)
         url = explicit or derive_url(container, meta, settings.service_domain)
         if not url:
@@ -107,6 +109,26 @@ def gateway_report(
     session: Session = Depends(get_session), domain: str | None = None
 ) -> dict:
     """Routing diagnosis for the dashboard: the routes plus every container
-    left out and why."""
+    left out and why, and the cluster Ingresses the gateway's wildcard
+    already serves — together, the full hostname → backend map."""
     routes, excluded = _diagnose(session, domain)
-    return {"domain": settings.service_domain, "routes": routes, "excluded": excluded}
+    ingresses = []
+    for ingress in session.scalars(select(K8sIngress).order_by(K8sIngress.name)):
+        for host in json.loads(ingress.hosts_json or "[]"):
+            if domain and host != domain and not host.endswith("." + domain):
+                continue
+            ingresses.append(
+                {
+                    "host": host,
+                    "namespace": ingress.namespace,
+                    "name": ingress.name,
+                    "tls": ingress.tls,
+                }
+            )
+    ingresses.sort(key=lambda i: i["host"])
+    return {
+        "domain": settings.service_domain,
+        "routes": routes,
+        "excluded": excluded,
+        "ingresses": ingresses,
+    }

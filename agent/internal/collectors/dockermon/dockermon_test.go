@@ -111,3 +111,42 @@ func TestAvailableFalseWhenNoDaemon(t *testing.T) {
 		t.Fatal("expected unavailable")
 	}
 }
+
+func TestListFetchesExposedPortsForHostNetwork(t *testing.T) {
+	const hostNetList = `[
+	  {
+	    "Id": "beef0000beef0000",
+	    "Names": ["/zerobyte"],
+	    "Image": "ghcr.io/nicotsx/zerobyte:v0.41.0",
+	    "State": "running",
+	    "Status": "Up 2 hours",
+	    "Created": 1700000000,
+	    "Labels": {},
+	    "Ports": [],
+	    "HostConfig": {"NetworkMode": "host"}
+	  }
+	]`
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/containers/json":
+			w.Write([]byte(hostNetList))
+		case "/containers/beef0000beef0000/json":
+			w.Write([]byte(`{"Config": {"ExposedPorts": {"4096/tcp": {}, "51820/udp": {}}}}`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	})
+
+	containers, err := client.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	zerobyte := containers[0]
+	if zerobyte.NetworkMode != "host" {
+		t.Fatalf("network mode lost: %+v", zerobyte)
+	}
+	// EXPOSE'd ports stand in for published ones — the app listens on the host.
+	if len(zerobyte.Ports) != 2 || zerobyte.Ports[0] != "4096/tcp" {
+		t.Fatalf("exposed ports wrong: %v", zerobyte.Ports)
+	}
+}

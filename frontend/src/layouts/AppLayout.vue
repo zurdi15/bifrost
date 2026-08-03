@@ -133,6 +133,7 @@ const hubDown = computed(() => live.connection !== 'live');
   flex-direction: column;
 }
 .hairline {
+  view-transition-name: bf-hairline;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -148,6 +149,7 @@ const hubDown = computed(() => live.connection !== 'live');
 }
 /* Wordmark left, nav dead-center, status right. */
 .topbar {
+  view-transition-name: bf-topbar;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -275,6 +277,9 @@ const hubDown = computed(() => live.connection !== 'live');
     padding: 0.5rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
   }
   .dock {
+    /* Own view-transition group: hero morphs crossfade the page root, and
+       without a name the dock would visibly repaint on every navigation. */
+    view-transition-name: bf-dock;
     /* Items shrink so any count of tabs fits the narrowest phones; the pill
        shares the same vars so its slide always lands on the active icon. */
     --dock-item: min(2.9rem, calc((100vw - 3.5rem) / var(--n, 6)));

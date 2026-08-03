@@ -22,10 +22,18 @@ interface GatewayExcluded {
   detail?: string;
 }
 
+interface GatewayIngress {
+  host: string;
+  namespace: string;
+  name: string;
+  tls: boolean;
+}
+
 interface GatewayReport {
   domain: string;
   routes: GatewayRoute[];
   excluded: GatewayExcluded[];
+  ingresses: GatewayIngress[];
 }
 
 const { t } = useI18n();
@@ -93,6 +101,31 @@ watch(() => live.k8sVersion, load);
             <span class="where">{{ route.container }}</span>
             <BfChip tone="neutral" mono>{{ route.node }}</BfChip>
             <span class="port bf-metric">:{{ route.port }}</span>
+          </div>
+        </BfCard>
+      </div>
+
+      <h3 class="subtitle">
+        {{ t('gateway.cluster') }}
+        <span class="count bf-metric">{{ report.ingresses.length }}</span>
+      </h3>
+      <p v-if="loaded && report.ingresses.length === 0" class="empty">
+        {{ t('gateway.noIngresses') }}
+      </p>
+      <div v-else class="list bf-stagger">
+        <BfCard
+          v-for="(ingress, i) in report.ingresses"
+          :key="`${ingress.namespace}/${ingress.name}/${ingress.host}`"
+          :padded="false"
+          :style="{ '--i': i }"
+        >
+          <div class="row">
+            <a class="host" :href="`https://${ingress.host}`" target="_blank" rel="noopener">
+              {{ ingress.host }}
+            </a>
+            <BfChip tone="neutral">Ingress</BfChip>
+            <span class="spacer" />
+            <span class="where">{{ ingress.namespace }}/{{ ingress.name }}</span>
           </div>
         </BfCard>
       </div>

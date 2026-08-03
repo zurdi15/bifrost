@@ -148,6 +148,8 @@
     "title": "Gateway",
     "routed": "Servicios enrutados",
     "excluded": "Sin enrutar",
+    "cluster": "Clúster (Ingress)",
+    "noIngresses": "Sin Ingresses conocidos del clúster.",
     "noDomain": "Sin dominio de servicios — define BIFROST_SERVICE_DOMAIN en el hub para que los contenedores sin labels tengan URL https://<nombre>.<dominio> y alimenten el gateway.",
     "noRoutes": "Aún no hay servicios Docker enrutados — pon la label bifrost.url a un contenedor, o publica un único puerto TCP y la convención le pondrá nombre.",
     "allRouted": "Todos los contenedores elegibles están enrutados.",
