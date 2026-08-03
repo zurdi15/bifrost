@@ -7,7 +7,7 @@ from app.ingest import protocol as proto
 from app.models import Container, Disk, FsMount, ServiceOverride, now_ts
 
 BIFROST_LABEL_PREFIX = "bifrost."
-META_KEYS = ("name", "icon", "url", "group", "hide")
+META_KEYS = ("name", "icon", "url", "group", "hide", "port")
 
 
 def extract_bifrost_meta(labels: dict[str, str]) -> dict:
