@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
@@ -17,7 +17,7 @@ import BfStatusDot from '@/lib/data/BfStatusDot.vue';
 import { statusToken } from '@/tokens';
 import { useLiveStore } from '@/stores/live';
 import { useMetricsStore } from '@/stores/metrics';
-import { formatBps, formatUptime } from '@/utils/format';
+import { formatBps, formatClock, formatUptime } from '@/utils/format';
 
 const route = useRoute();
 const { t } = useI18n();
@@ -61,30 +61,95 @@ function openUrlEditor(): void {
   editingUrl.value = true;
 }
 
-const speedtesting = ref(false);
-interface SpeedtestResult {
-  latency_ms: number | null;
-  download_mbps: number | null;
-  upload_mbps: number | null;
-  error?: string;
+// ── speedtest: phases, count-up numbers and a local run history ────────────
+interface SpeedRun {
+  ts: number;
+  down: number;
+  up: number;
+  lat: number;
 }
-const speedtestResult = ref<SpeedtestResult | null>(null);
-const speedtestError = ref('');
+type SpeedPhase = 'idle' | 'latency' | 'download' | 'upload' | 'done';
+const speedPhase = ref<SpeedPhase>('idle');
+const speedRunning = computed(() =>
+  ['latency', 'download', 'upload'].includes(speedPhase.value),
+);
+const speedProgress = ref(0);
+const speedError = ref('');
+const lastRunTs = ref<number | null>(null);
+const shown = reactive({ down: 0, up: 0, lat: 0 });
+const speedHistory = ref<SpeedRun[]>([]);
+let speedTimer: number | undefined;
+
+const historyKey = computed(() => `bf-speedtest-${uuid.value}`);
+
+function loadSpeedHistory(): void {
+  try {
+    speedHistory.value = JSON.parse(localStorage.getItem(historyKey.value) ?? '[]');
+  } catch {
+    speedHistory.value = [];
+  }
+  const last = speedHistory.value.at(-1);
+  if (last) {
+    Object.assign(shown, { down: last.down, up: last.up, lat: last.lat });
+    lastRunTs.value = last.ts;
+    speedPhase.value = 'done';
+  }
+}
+onMounted(loadSpeedHistory);
+
+function animateNumbers(finals: { down: number; up: number; lat: number }): void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    Object.assign(shown, finals);
+    return;
+  }
+  const start = performance.now();
+  const duration = 900;
+  const tick = (now: number) => {
+    const t01 = Math.min((now - start) / duration, 1);
+    const eased = 1 - (1 - t01) ** 3;
+    shown.down = finals.down * eased;
+    shown.up = finals.up * eased;
+    shown.lat = finals.lat * eased;
+    if (t01 < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
 
 async function runSpeedtest(): Promise<void> {
-  speedtesting.value = true;
-  speedtestError.value = '';
-  speedtestResult.value = null;
+  speedError.value = '';
+  speedProgress.value = 0;
+  speedPhase.value = 'latency';
+  Object.assign(shown, { down: 0, up: 0, lat: 0 });
+  const started = performance.now();
+  // The agent phases have fixed windows (~2s latency, 8s down, 8s up), so a
+  // client-side clock is an honest progress source.
+  speedTimer = window.setInterval(() => {
+    const elapsed = (performance.now() - started) / 1000;
+    speedProgress.value = Math.min(elapsed / 19, 0.97);
+    speedPhase.value = elapsed < 2 ? 'latency' : elapsed < 10.5 ? 'download' : 'upload';
+  }, 120);
   try {
     const response = await fetch(`/api/v1/nodes/${uuid.value}/speedtest`, { method: 'POST' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = (await response.json()) as SpeedtestResult;
-    if (result.error) speedtestError.value = result.error;
-    else speedtestResult.value = result;
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+    const run: SpeedRun = {
+      ts: Math.floor(Date.now() / 1000),
+      down: result.download_mbps ?? 0,
+      up: result.upload_mbps ?? 0,
+      lat: result.latency_ms ?? 0,
+    };
+    speedHistory.value = [...speedHistory.value, run].slice(-12);
+    localStorage.setItem(historyKey.value, JSON.stringify(speedHistory.value));
+    lastRunTs.value = run.ts;
+    speedProgress.value = 1;
+    speedPhase.value = 'done';
+    animateNumbers(run);
   } catch {
-    speedtestError.value = t('detail.speedtestFailed');
+    speedError.value = t('detail.speedtestFailed');
+    speedPhase.value = speedHistory.value.length > 0 ? 'done' : 'idle';
   } finally {
-    speedtesting.value = false;
+    window.clearInterval(speedTimer);
   }
 }
 
@@ -169,17 +234,6 @@ onMounted(async () => {
         </form>
       </span>
 
-      <span class="speed-zone">
-        <BfButton size="sm" :disabled="speedtesting || node.status !== 'online'" @click="runSpeedtest">
-          {{ speedtesting ? t('detail.speedtestRunning') : t('detail.speedtest') }}
-        </BfButton>
-        <span v-if="speedtestResult" class="speed-result bf-metric">
-          ↓ {{ Math.round(speedtestResult.download_mbps ?? 0) }} Mbps · ↑
-          {{ Math.round(speedtestResult.upload_mbps ?? 0) }} Mbps ·
-          {{ Math.round(speedtestResult.latency_ms ?? 0) }} ms
-        </span>
-        <BfChip v-if="speedtestError" tone="down">{{ speedtestError }}</BfChip>
-      </span>
     </header>
 
     <div class="panels bf-stagger">
@@ -278,6 +332,82 @@ onMounted(async () => {
       </BfCard>
     </div>
 
+    <BfCard class="speedtest">
+      <header class="panel-head">
+        <span class="panel-label">{{ t('detail.speedtest') }}</span>
+        <span v-if="!speedRunning && lastRunTs" class="speed-when bf-metric">
+          {{ formatClock(lastRunTs) }}
+        </span>
+        <BfButton
+          size="sm"
+          variant="primary"
+          :disabled="speedRunning || node.status !== 'online'"
+          @click="runSpeedtest"
+        >
+          <span v-if="speedRunning" class="speed-live-dot" aria-hidden="true" />
+          {{ speedRunning ? t(`detail.speedPhase.${speedPhase}`) : t('detail.speedtest') }}
+        </BfButton>
+      </header>
+
+      <div v-if="speedRunning" class="speed-track" aria-hidden="true">
+        <span class="speed-fill" :style="{ transform: `scaleX(${speedProgress})` }" />
+      </div>
+
+      <div class="speed-tiles" :class="{ running: speedRunning }">
+        <div class="speed-tile" style="--tile: var(--bf-metric-net-rx)">
+          <span class="speed-arrow">↓</span>
+          <span class="speed-value bf-metric">{{ shown.down.toFixed(0) }}</span>
+          <span class="speed-unit">Mbps</span>
+          <span class="speed-name">{{ t('detail.speedDown') }}</span>
+          <svg class="speed-wave" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 20 C 12 20 14 6 26 6 S 40 22 52 22 66 4 78 8 100 18 120 10" />
+          </svg>
+        </div>
+        <div class="speed-tile" style="--tile: var(--bf-metric-net-tx)">
+          <span class="speed-arrow">↑</span>
+          <span class="speed-value bf-metric">{{ shown.up.toFixed(0) }}</span>
+          <span class="speed-unit">Mbps</span>
+          <span class="speed-name">{{ t('detail.speedUp') }}</span>
+          <svg class="speed-wave" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 12 C 14 24 24 4 38 8 S 60 22 74 16 96 4 120 14" />
+          </svg>
+        </div>
+        <div class="speed-tile" style="--tile: var(--bf-metric-cpu)">
+          <span class="speed-arrow">⌀</span>
+          <span class="speed-value bf-metric">{{ shown.lat.toFixed(0) }}</span>
+          <span class="speed-unit">ms</span>
+          <span class="speed-name">{{ t('detail.speedLat') }}</span>
+          <svg class="speed-wave" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 16 L 18 16 24 6 30 22 36 16 62 16 68 8 74 20 80 16 120 16" />
+          </svg>
+        </div>
+      </div>
+
+      <div v-if="speedHistory.length >= 2" class="speed-history">
+        <span class="speed-name">{{ t('detail.speedHistory') }}</span>
+        <div class="speed-history-lines">
+          <BfSparkline
+            :points="speedHistory.map((h) => h.down)"
+            :width="260"
+            :height="30"
+            :min="0"
+            color="var(--bf-metric-net-rx)"
+            class="panel-spark"
+          />
+          <BfSparkline
+            :points="speedHistory.map((h) => h.up)"
+            :width="260"
+            :height="30"
+            :min="0"
+            color="var(--bf-metric-net-tx)"
+            class="panel-spark"
+          />
+        </div>
+      </div>
+
+      <BfChip v-if="speedError" tone="down">{{ speedError }}</BfChip>
+    </BfCard>
+
     <NodeFilesystems :uuid="node.uuid" />
     <NodeHistory :uuid="node.uuid" :interfaces="interfaces" />
   </section>
@@ -312,14 +442,146 @@ onMounted(async () => {
   font-weight: 700;
   color: var(--bf-ink-strong);
 }
-.speed-zone {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
+.speedtest {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
-.speed-result {
-  font-size: 0.8rem;
-  color: var(--bf-ink-secondary);
+.speed-when {
+  margin-left: auto;
+  margin-right: 0.8rem;
+  font-size: 0.72rem;
+  color: var(--bf-ink-muted);
+}
+.speedtest .panel-head .speed-when + * {
+  margin-left: 0;
+}
+.speed-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bf-status-up);
+  display: inline-block;
+  margin-right: 0.45rem;
+  animation: speed-pulse 1.1s var(--bf-ease-spring) infinite;
+}
+@keyframes speed-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.65);
+  }
+}
+.speed-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bf-line);
+  overflow: hidden;
+}
+.speed-fill {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  background: var(--bf-aurora);
+  background-size: 300% 100%;
+  animation: bf-aurora-drift 6s linear infinite;
+  transition: transform var(--bf-dur-150) linear;
+}
+.speed-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+.speed-tile {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  column-gap: 0.4rem;
+  padding: 0.75rem 0.85rem 1.6rem;
+  border: 1px solid var(--bf-line);
+  border-radius: var(--bf-radius-ctl);
+}
+.speed-arrow {
+  color: var(--tile);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.speed-value {
+  font-size: 1.7rem;
+  font-weight: 650;
+  color: var(--bf-ink-strong);
+  line-height: 1;
+}
+.speed-unit {
+  font-size: 0.72rem;
+  color: var(--bf-ink-muted);
+}
+.speed-name {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bf-ink-muted);
+}
+.speed-wave {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: 22px;
+}
+.speed-wave path {
+  fill: none;
+  stroke: var(--tile);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+}
+.speed-tiles.running .speed-wave path {
+  animation: speed-draw 1.7s var(--bf-ease-spring) infinite;
+}
+.speed-tiles:not(.running) .speed-wave path {
+  stroke-dashoffset: 0;
+  opacity: 0.45;
+  transition: stroke-dashoffset var(--bf-dur-800) var(--bf-ease-spring);
+}
+@keyframes speed-draw {
+  0% {
+    stroke-dashoffset: 240;
+    opacity: 1;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.15;
+  }
+}
+.speed-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.speed-history-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+@media (max-width: 720px) {
+  .speed-tiles {
+    grid-template-columns: 1fr;
+  }
 }
 .url-zone {
   display: inline-flex;

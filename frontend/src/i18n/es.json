@@ -43,7 +43,18 @@
     "urlPlaceholder": "https://nas.ejemplo:5443",
     "speedtest": "speedtest",
     "speedtestRunning": "midiendo…",
-    "speedtestFailed": "el speedtest falló"
+    "speedtestFailed": "el speedtest falló",
+    "speedDown": "bajada",
+    "speedUp": "subida",
+    "speedLat": "latencia",
+    "speedHistory": "pruebas recientes",
+    "speedPhase": {
+      "latency": "midiendo ping…",
+      "download": "bajando…",
+      "upload": "subiendo…",
+      "done": "hecho",
+      "idle": "speedtest"
+    }
   },
   "services": {
     "title": "Servicios",
