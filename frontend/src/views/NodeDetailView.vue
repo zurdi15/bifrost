@@ -58,6 +58,7 @@ const savingUrl = ref(false);
 function openUrlEditor(): void {
   urlDraft.value = node.value?.url ?? '';
   editingUrl.value = true;
+  portDraft.value = node.value?.ui_port ? String(node.value.ui_port) : '';
 }
 
 // ── speedtest: phases, count-up numbers and a local run history ────────────
@@ -150,10 +151,15 @@ async function runSpeedtest(): Promise<void> {
   }
 }
 
+const portDraft = ref('');
+
 async function saveUrl(): Promise<void> {
   savingUrl.value = true;
   try {
-    await api.patchNode(uuid.value, { url: urlDraft.value });
+    await api.patchNode(uuid.value, {
+      url: urlDraft.value,
+      ui_port: Number(portDraft.value) || 0,
+    });
     await live.snapshot();
     editingUrl.value = false;
   } finally {
@@ -223,6 +229,12 @@ onMounted(async () => {
             v-model="urlDraft"
             class="url-field bf-metric"
             :placeholder="t('detail.urlPlaceholder')"
+          />
+          <input
+            v-model="portDraft"
+            class="url-field port-field bf-metric"
+            inputmode="numeric"
+            :placeholder="t('detail.uiPortPlaceholder')"
           />
           <BfButton size="sm" variant="primary" :disabled="savingUrl">
             {{ t('service.save') }}
@@ -591,6 +603,9 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+.port-field {
+  max-width: 7.5rem;
 }
 .url-field {
   font: inherit;

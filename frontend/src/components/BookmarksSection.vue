@@ -61,14 +61,17 @@ const visible = computed(() =>
 
 const groups = computed(() => {
   const map = new Map<string, BookmarkInfo[]>();
+  // Case-insensitive buckets; the first spelling seen is the shown label.
+  const labels = new Map<string, string>();
   for (const bookmark of visible.value) {
-    const key = bookmark.group ?? '';
+    const key = (bookmark.group ?? '').toLowerCase();
+    if (!labels.has(key)) labels.set(key, bookmark.group ?? '');
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(bookmark);
   }
-  return [...map.entries()].sort(([a], [b]) =>
-    a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
-  );
+  return [...map.entries()]
+    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+    .map(([key, list]) => [key, labels.get(key) ?? key, list] as const);
 });
 
 function iconOf(bookmark: BookmarkInfo): string | null {
@@ -122,7 +125,7 @@ async function reorderGroup(group: string, ids: string[]): Promise<void> {
   const newGroupOrder = ids
     .map((id) => byId.get(id))
     .filter((b): b is BookmarkInfo => !!b);
-  const sequence = groups.value.flatMap(([g, list]) =>
+  const sequence = groups.value.flatMap(([g, , list]) =>
     g === group ? newGroupOrder : list,
   );
   await api.orderBookmarks(sequence.map((b) => b.id));
@@ -151,8 +154,8 @@ async function remove(): Promise<void> {
     <p v-if="bookmarks.length === 0" class="empty">{{ t('bookmarks.empty') }}</p>
     <p v-else-if="visible.length === 0" class="empty">{{ t('bookmarks.noMatches') }}</p>
 
-    <div v-for="[group, list] in groups" :key="group || '_'" class="group">
-      <h3 v-if="group" class="group-title">{{ group }}</h3>
+    <div v-for="[group, label, list] in groups" :key="group || '_'" class="group">
+      <h3 v-if="label" class="group-title">{{ label }}</h3>
       <SortableList
         class="grid bf-stagger"
         :items="list"

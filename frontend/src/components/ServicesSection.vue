@@ -52,11 +52,15 @@ const groups = computed<Bucket[]>(() => {
       case 'state':
         return container.state === 'running' ? 'running' : 'stopped';
       default:
-        return container.meta.group ?? '';
+        // Case-insensitive: "Media" and "media" are one group.
+        return (container.meta.group ?? '').toLowerCase();
     }
   };
+  // First spelling seen wins as the displayed label (keys are lowercased).
+  const labels = new Map<string, string>();
   for (const container of filtered.value) {
     const key = keyOf(container);
+    if (!labels.has(key)) labels.set(key, container.meta.group ?? key);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(container);
   }
@@ -74,7 +78,7 @@ const groups = computed<Bucket[]>(() => {
         .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
         .map(([key, list]) => ({
           key,
-          label: key,
+          label: labels.get(key) ?? key,
           list: layout.apply(`svc:${key}`, list, serviceId),
         }));
   }

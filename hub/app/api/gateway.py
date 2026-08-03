@@ -107,13 +107,16 @@ def _diagnose(session: Session, domain: str | None) -> tuple[list[dict], list[di
             "source": "explicit" if explicit else "derived",
             "hide": meta.get("hide") is True,
         }
-    for node in session.scalars(
-        select(Node).where(Node.kind == "endpoint").order_by(Node.name)
-    ):
-        checks = list(
-            session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
-        )
-        upstream = _endpoint_upstream(checks)
+    for node in session.scalars(select(Node).order_by(Node.name)):
+        if node.kind == "endpoint":
+            checks = list(
+                session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
+            )
+            upstream = _endpoint_upstream(checks)
+        elif node.ui_port:
+            upstream = (node.name, node.ui_port)
+        else:
+            upstream = None
         if upstream is None:
             continue
         entry = {"container": node.name, "node": node.name}

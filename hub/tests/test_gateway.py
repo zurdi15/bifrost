@@ -385,3 +385,37 @@ def test_endpoint_appears_as_dashboard_service(client, monkeypatch):
     assert card["meta"]["url"] == "https://haos.lab.example"
     assert card["source"] == "endpoint"
     assert card["image"] == "http://haos-box:8123"
+
+
+def test_gateway_node_ui_port_routes(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame(hostname="nas"))
+        node_uuid = json.loads(ws.receive_text())["node_uuid"]
+        ws.send_text(containers_full_frame(1, []))
+        client.patch(f"/api/v1/nodes/{node_uuid}", json={"ui_port": 1253})
+
+        routes = client.get("/api/v1/gateway/routes").json()
+        assert routes == [
+            {
+                "host": "nas.lab.example",
+                "node": "nas",
+                "port": 1253,
+                "container": "nas",
+                "path": None,
+            }
+        ]
+
+        # It rides the dashboard too, marked as a node UI.
+        from app.api.nodes import endpoint_services_list
+        from app.db import session_scope as scope
+
+        with scope() as session:
+            cards = [c for c in endpoint_services_list(session) if c["source"] == "node"]
+        assert cards[0]["meta"]["url"] == "https://nas.lab.example"
+        assert cards[0]["image"] == "nas:1253"
+
+        # ui_url lands in the node payload for the nodes view link.
+        nodes = client.get("/api/v1/nodes").json()
+        nas = next(n for n in nodes if n["uuid"] == node_uuid)
+        assert nas["ui_url"] == "https://nas.lab.example"

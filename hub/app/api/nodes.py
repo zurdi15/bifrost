@@ -21,6 +21,8 @@ def node_to_dict(node: Node, registry: AgentRegistry, checks: list | None = None
         "kind": node.kind,
         "status": node.status,
         "url": node.url,
+        "ui_port": node.ui_port,
+        "ui_url": node_ui_url(node),
         "os": node.os,
         "arch": node.arch,
         "agent_version": node.agent_version,
@@ -34,6 +36,18 @@ def node_to_dict(node: Node, registry: AgentRegistry, checks: list | None = None
     }
 
 
+def node_ui_url(node: Node) -> str | None:
+    """Effective UI link: the explicit node URL, or the gateway hostname the
+    ui_port derives. None when the node advertises no UI."""
+    from app.config import settings
+
+    if node.url:
+        return node.url
+    if node.ui_port and settings.service_domain:
+        return f"https://{node.name}.{settings.service_domain}"
+    return None
+
+
 def endpoint_services_list(session: Session) -> list[dict]:
     """Routable endpoints shaped like dashboard service cards: the check
     target is the subtitle, the gateway hostname is the click-through."""
@@ -44,13 +58,19 @@ def endpoint_services_list(session: Session) -> list[dict]:
     from app.models import EndpointCheck
 
     out = []
-    for node in session.scalars(
-        select(Node).where(Node.kind == "endpoint").order_by(Node.name)
-    ):
-        checks = list(
-            session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
-        )
-        if _endpoint_upstream(checks) is None:
+    for node in session.scalars(select(Node).order_by(Node.name)):
+        if node.kind == "endpoint":
+            checks = list(
+                session.scalars(select(EndpointCheck).where(EndpointCheck.node_id == node.id))
+            )
+            if _endpoint_upstream(checks) is None:
+                continue
+            subtitle = checks[0].target if checks else None
+            source = "endpoint"
+        elif node.ui_port:
+            subtitle = f"{node.name}:{node.ui_port}"
+            source = "node"
+        else:
             continue
         host = None
         if node.url:
@@ -59,13 +79,16 @@ def endpoint_services_list(session: Session) -> list[dict]:
             host = f"{node.name}.{settings.service_domain}"
         out.append(
             {
-                "id": f"endpoint-{node.uuid}",
+                "id": f"{source}-{node.uuid}",
                 "name": node.name,
-                "image": checks[0].target if checks else None,
+                "image": subtitle,
                 "state": "running" if node.status == "online" else "exited",
                 "health": "",
                 "ports": [],
-                "meta": {"url": f"https://{host}"} if host else {},
+                "meta": (
+                    ({"url": f"https://{host}"} if host else {})
+                    | ({"group": "nodes"} if source == "node" else {})
+                ),
                 "started_at": None,
                 "cpu_pct": None,
                 "mem_pct": None,
@@ -73,7 +96,7 @@ def endpoint_services_list(session: Session) -> list[dict]:
                 "updated_at": now_ts(),
                 "node_uuid": node.uuid,
                 "node_name": node.name,
-                "source": "endpoint",
+                "source": source,
             }
         )
     return out
@@ -186,6 +209,7 @@ def create_endpoint(
 class NodePatch(BaseModel):
     name: str | None = None
     url: str | None = None
+    ui_port: int | None = None
     approve: bool | None = None
     labels: dict[str, str] | None = None
 
@@ -199,6 +223,8 @@ def patch_node(
         node.name = patch.name
     if patch.url is not None:
         node.url = patch.url.strip() or None  # empty string clears
+    if patch.ui_port is not None:
+        node.ui_port = patch.ui_port or None  # 0 clears
     if patch.labels is not None:
         node.labels_json = json.dumps(patch.labels)
     if patch.approve and node.status == "pending":

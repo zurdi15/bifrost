@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { mdiOpenInNew, mdiPackageUp, mdiPencil } from '@mdi/js';
+import { mdiOpenInNew, mdiPackageUp, mdiPencil, mdiServer } from '@mdi/js';
 
 import { api } from '@/api/client';
 import type { ContainerInfo } from '@/api/types';
@@ -80,7 +80,9 @@ const iconIsImage = computed(() => /^(https?:\/\/|\/)/.test(props.container.meta
 
 // No explicit icon → resolve one from the service name (selfh.st via hub).
 watchEffect(() => {
-  if (!props.container.meta.icon) icons.ensure(props.container);
+  if (!props.container.meta.icon && props.container.source !== 'node') {
+    icons.ensure(props.container);
+  }
 });
 const autoIcon = computed(() =>
   props.container.meta.icon ? null : icons.iconFor(props.container),
@@ -176,6 +178,9 @@ async function save(): Promise<void> {
           <span v-if="container.meta.icon" class="icon">
             <img v-if="iconIsImage" :src="container.meta.icon" alt="" loading="lazy" />
             <template v-else>{{ container.meta.icon }}</template>
+          </span>
+          <span v-else-if="container.source === 'node'" class="icon node-glyph">
+            <BfIcon :path="mdiServer" :size="20" />
           </span>
           <span v-else-if="autoIcon && !autoIconBroken" class="icon">
             <img :src="autoIcon" alt="" loading="lazy" @error="autoIconBroken = true" />
@@ -296,6 +301,9 @@ async function save(): Promise<void> {
 .image {
   margin: 0;
   font-size: 0.66rem;
+  color: var(--bf-ink-muted);
+}
+.node-glyph {
   color: var(--bf-ink-muted);
 }
 .image-text {

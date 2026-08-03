@@ -31,6 +31,9 @@ class Node(Base):
     status: Mapped[str] = mapped_column(default="pending")
     # Optional link to the node's own UI (a NAS dashboard, HAOS, …).
     url: Mapped[str | None]
+    # Host port serving that UI; set → the gateway routes it and the
+    # dashboard shows it as a service card.
+    ui_port: Mapped[int | None]
     os: Mapped[str | None]
     arch: Mapped[str | None]
     agent_version: Mapped[str | None]

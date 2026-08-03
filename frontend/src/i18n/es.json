@@ -55,7 +55,8 @@
       "upload": "subiendo…",
       "done": "hecho",
       "idle": "speedtest"
-    }
+    },
+    "uiPortPlaceholder": "puerto UI (p.ej. 1253)"
   },
   "services": {
     "title": "Servicios",

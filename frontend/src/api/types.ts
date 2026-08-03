@@ -21,6 +21,8 @@ export interface NodeInfo {
   status: string;
   /** Optional link to the node's own UI (NAS dashboard, HAOS, …). */
   url: string | null;
+  ui_port?: number | null;
+  ui_url?: string | null;
   os: string | null;
   arch: string | null;
   agent_version: string | null;
@@ -58,7 +60,7 @@ export interface ContainerInfo {
   node_uuid: string;
   node_name: string;
   /** 'docker' container, 'k8s' workload or routable 'endpoint' — all render as cards. */
-  source?: 'docker' | 'k8s' | 'endpoint';
+  source?: 'docker' | 'k8s' | 'endpoint' | 'node';
   /** Newer semver tag available upstream, when the update watch found one. */
   update?: string | null;
 }

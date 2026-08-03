@@ -55,7 +55,8 @@
       "upload": "pushing…",
       "done": "done",
       "idle": "speedtest"
-    }
+    },
+    "uiPortPlaceholder": "UI port (e.g. 1253)"
   },
   "services": {
     "title": "Services",

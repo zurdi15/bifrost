@@ -27,7 +27,7 @@ export const api = {
   node: (uuid: string) => request<NodeInfo>(`/nodes/${uuid}`),
   patchNode: (
     uuid: string,
-    body: { name?: string; url?: string; approve?: boolean },
+    body: { name?: string; url?: string; approve?: boolean; ui_port?: number },
   ) =>
     request<NodeInfo>(`/nodes/${uuid}`, {
       method: "PATCH",

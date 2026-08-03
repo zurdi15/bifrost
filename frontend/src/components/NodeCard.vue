@@ -53,6 +53,10 @@ const isDown = computed(
 const cpu = computed(() => props.node.live?.samples['cpu.pct'] ?? null);
 const mem = computed(() => props.node.live?.samples['mem.pct'] ?? null);
 const temp = computed(() => props.node.live?.samples['temp.cpu'] ?? null);
+function openUi(): void {
+  if (props.node.ui_url) window.open(props.node.ui_url, '_blank', 'noopener');
+}
+
 const cpuSeries = computed(() => metrics.series(props.node.uuid, 'cpu.pct'));
 
 // One-shot perimeter sweeps on status transitions.
@@ -86,6 +90,16 @@ watch(
         <BfStatusDot :status="node.status" :desync-id="node.uuid" />
       </span>
       <span class="name">{{ node.name }}</span>
+      <button
+        v-if="node.ui_url"
+        class="ui-link bf-tip-bottom"
+        type="button"
+        :data-bf-tip="node.ui_url"
+        :aria-label="node.ui_url"
+        @click.stop.prevent="openUi"
+      >
+        <BfIcon :path="mdiOpenInNew" :size="12" />
+      </button>
       <button
         v-if="node.url"
         class="link-out bf-tip-bl"
@@ -194,6 +208,19 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+.ui-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bf-ink-faint);
+  cursor: pointer;
+  transition: color var(--bf-dur-150);
+}
+.ui-link:hover {
+  color: var(--bf-brand);
 }
 .name {
   font-weight: 600;
