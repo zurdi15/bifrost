@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -14,6 +15,9 @@ import (
 const (
 	base          = "https://speed.cloudflare.com"
 	phaseDuration = 8 * time.Second
+	// Parallel streams per throughput phase — single-stream TCP tops out well
+	// below line rate on any real RTT; browser speedtests do the same.
+	streams = 6
 )
 
 func get(ctx context.Context, client *http.Client, url string) error {
@@ -30,24 +34,34 @@ func get(ctx context.Context, client *http.Client, url string) error {
 	return err
 }
 
-func timedDownload(ctx context.Context, client *http.Client, url string) (int64, float64) {
+func parallelDownload(ctx context.Context, client *http.Client, url string) (int64, float64) {
 	reqCtx, cancel := context.WithTimeout(ctx, phaseDuration)
 	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0, 0
-	}
+	var received atomic.Int64
+	var wg sync.WaitGroup
 	start := time.Now()
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, 0
+	for range streams {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+			if err != nil {
+				return
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				return
+			}
+			n, _ := io.Copy(io.Discard, resp.Body) // deadline cut is expected
+			received.Add(n)
+		}()
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, 0
-	}
-	n, _ := io.Copy(io.Discard, resp.Body) // deadline cut is expected
-	return n, time.Since(start).Seconds()
+	wg.Wait()
+	return received.Load(), time.Since(start).Seconds()
 }
 
 func readOnce(ctx context.Context, client *http.Client, url string) (int64, bool) {
@@ -89,7 +103,10 @@ func Run(ctx context.Context, downloadURL string) (float64, float64, float64, er
 	// Download: one sustained single-stream read against a large test file —
 	// a burst of small requests trips Cloudflare's per-IP rate limiter (429),
 	// so Cloudflare is only the fallback, in capped 25MB chunks.
-	received, elapsed := timedDownload(ctx, client, downloadURL)
+	// HTTP/1.1 on purpose: h2 would multiplex every stream over one TCP
+	// connection and defeat the parallelism.
+	parallel := &http.Client{Transport: &http.Transport{MaxIdleConnsPerHost: streams}}
+	received, elapsed := parallelDownload(ctx, parallel, downloadURL)
 	if received == 0 {
 		downCtx, cancelDown := context.WithTimeout(ctx, phaseDuration)
 		for downCtx.Err() == nil {
@@ -107,33 +124,40 @@ func Run(ctx context.Context, downloadURL string) (float64, float64, float64, er
 		downMbps = float64(received) * 8 / elapsed / 1e6
 	}
 
-	// Upload: stream zeros until the window closes.
+	// Upload: parallel streams of zeros until the window closes.
 	upCtx, cancelUp := context.WithTimeout(ctx, phaseDuration)
 	defer cancelUp()
 	var sent atomic.Int64
-	reader, writer := io.Pipe()
-	go func() {
-		chunk := make([]byte, 64*1024)
-		for upCtx.Err() == nil {
-			n, werr := writer.Write(chunk)
-			sent.Add(int64(n))
-			if werr != nil {
+	var upWg sync.WaitGroup
+	upStart := time.Now()
+	for range streams {
+		upWg.Add(1)
+		go func() {
+			defer upWg.Done()
+			reader, writer := io.Pipe()
+			go func() {
+				chunk := make([]byte, 64*1024)
+				for upCtx.Err() == nil {
+					n, werr := writer.Write(chunk)
+					sent.Add(int64(n))
+					if werr != nil {
+						return
+					}
+				}
+				writer.Close()
+			}()
+			upReq, err := http.NewRequestWithContext(upCtx, http.MethodPost, base+"/__up", reader)
+			if err != nil {
 				return
 			}
-		}
-		writer.Close()
-	}()
-	upReq, err := http.NewRequestWithContext(upCtx, http.MethodPost, base+"/__up", reader)
-	if err != nil {
-		return 0, 0, 0, err
+			if upResp, uerr := parallel.Do(upReq); uerr == nil {
+				io.Copy(io.Discard, upResp.Body)
+				upResp.Body.Close()
+			}
+		}()
 	}
-	upStart := time.Now()
-	upResp, upErr := client.Do(upReq)
+	upWg.Wait()
 	upElapsed := time.Since(upStart).Seconds()
-	if upErr == nil {
-		io.Copy(io.Discard, upResp.Body)
-		upResp.Body.Close()
-	}
 	upMbps := 0.0
 	if upElapsed > 0 && sent.Load() > 0 {
 		upMbps = float64(sent.Load()) * 8 / upElapsed / 1e6
