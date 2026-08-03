@@ -76,25 +76,24 @@ const speedProgress = ref(0);
 const speedError = ref('');
 const lastRunTs = ref<number | null>(null);
 const shown = reactive({ down: 0, up: 0, lat: 0 });
-const speedHistory = ref<SpeedRun[]>([]);
 let speedTimer: number | undefined;
 
-const historyKey = computed(() => `bf-speedtest-${uuid.value}`);
+const lastRunKey = computed(() => `bf-speedtest-${uuid.value}`);
 
-function loadSpeedHistory(): void {
+function loadLastRun(): void {
+  let last: SpeedRun | null = null;
   try {
-    speedHistory.value = JSON.parse(localStorage.getItem(historyKey.value) ?? '[]');
+    last = JSON.parse(localStorage.getItem(lastRunKey.value) ?? 'null');
   } catch {
-    speedHistory.value = [];
+    last = null;
   }
-  const last = speedHistory.value.at(-1);
   if (last) {
     Object.assign(shown, { down: last.down, up: last.up, lat: last.lat });
     lastRunTs.value = last.ts;
     speedPhase.value = 'done';
   }
 }
-onMounted(loadSpeedHistory);
+onMounted(loadLastRun);
 
 function animateNumbers(finals: { down: number; up: number; lat: number }): void {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -138,15 +137,14 @@ async function runSpeedtest(): Promise<void> {
       up: result.upload_mbps ?? 0,
       lat: result.latency_ms ?? 0,
     };
-    speedHistory.value = [...speedHistory.value, run].slice(-12);
-    localStorage.setItem(historyKey.value, JSON.stringify(speedHistory.value));
+    localStorage.setItem(lastRunKey.value, JSON.stringify(run));
     lastRunTs.value = run.ts;
     speedProgress.value = 1;
     speedPhase.value = 'done';
     animateNumbers(run);
   } catch {
     speedError.value = t('detail.speedtestFailed');
-    speedPhase.value = speedHistory.value.length > 0 ? 'done' : 'idle';
+    speedPhase.value = lastRunTs.value ? 'done' : 'idle';
   } finally {
     window.clearInterval(speedTimer);
   }
@@ -347,10 +345,6 @@ onMounted(async () => {
         </BfButton>
       </header>
 
-      <div v-if="speedRunning" class="speed-track" aria-hidden="true">
-        <span class="speed-fill" :style="{ transform: `scaleX(${speedProgress})` }" />
-      </div>
-
       <div class="speed-tiles" :class="{ running: speedRunning }">
         <div class="speed-tile" style="--tile: var(--bf-metric-net-rx)">
           <span class="speed-arrow">↓</span>
@@ -381,26 +375,8 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="speedHistory.length >= 2" class="speed-history">
-        <span class="speed-name">{{ t('detail.speedHistory') }}</span>
-        <div class="speed-history-lines">
-          <BfSparkline
-            :points="speedHistory.map((h) => h.down)"
-            :width="260"
-            :height="30"
-            :min="0"
-            color="var(--bf-metric-net-rx)"
-            class="panel-spark"
-          />
-          <BfSparkline
-            :points="speedHistory.map((h) => h.up)"
-            :width="260"
-            :height="30"
-            :min="0"
-            color="var(--bf-metric-net-tx)"
-            class="panel-spark"
-          />
-        </div>
+      <div class="speed-track" :class="{ running: speedRunning }" aria-hidden="true">
+        <span class="speed-fill" :style="{ transform: `scaleX(${speedProgress})` }" />
       </div>
 
       <BfChip v-if="speedError" tone="down">{{ speedError }}</BfChip>
@@ -478,8 +454,11 @@ onMounted(async () => {
 .speed-track {
   height: 3px;
   border-radius: 2px;
-  background: var(--bf-line);
+  background: transparent;
   overflow: hidden;
+}
+.speed-track.running {
+  background: var(--bf-line);
 }
 .speed-fill {
   display: block;
@@ -565,16 +544,6 @@ onMounted(async () => {
     stroke-dashoffset: 0;
     opacity: 0.15;
   }
-}
-.speed-history {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.speed-history-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 @media (max-width: 720px) {
   .speed-tiles {

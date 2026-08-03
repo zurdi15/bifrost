@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { mdiOpenInNew, mdiPencil } from '@mdi/js';
+import { mdiOpenInNew, mdiPackageUp, mdiPencil } from '@mdi/js';
 
 import { api } from '@/api/client';
 import type { ContainerInfo } from '@/api/types';
@@ -149,7 +149,15 @@ async function save(): Promise<void> {
       </form>
 
       <template v-else>
-        <!-- The dot IS the state — top-right, details on hover. -->
+        <!-- The dot IS the state — top-right, details on hover. An update
+             upstream is a quiet package glyph beside it. -->
+        <span
+          v-if="container.update"
+          class="update-wrap bf-tip-bl"
+          :data-bf-tip="`→ ${container.update}`"
+        >
+          <BfIcon :path="mdiPackageUp" :size="14" />
+        </span>
         <span class="dot-wrap bf-tip-bl" :data-bf-tip="stateLabel">
           <BfStatusDot :status="status" :desync-id="container.id" :size="9" />
         </span>
@@ -179,9 +187,6 @@ async function save(): Promise<void> {
             </span>
             <p class="image bf-metric" :data-bf-tip="container.image ?? undefined">
               <span class="image-text">{{ shortImage }}</span>
-              <BfChip v-if="container.update" tone="warn" mono class="update">
-                → {{ container.update }}
-              </BfChip>
             </p>
           </div>
         </div>
@@ -220,6 +225,13 @@ async function save(): Promise<void> {
 .usage {
   font-size: 0.68rem;
   color: var(--bf-ink-muted);
+}
+.update-wrap {
+  position: absolute;
+  top: 0.55rem;
+  right: 2rem;
+  display: inline-flex;
+  color: var(--bf-status-warn);
 }
 .dot-wrap {
   position: absolute;
@@ -285,10 +297,6 @@ async function save(): Promise<void> {
   margin: 0;
   font-size: 0.66rem;
   color: var(--bf-ink-muted);
-}
-.update {
-  margin-left: 0.4rem;
-  flex: none;
 }
 .image-text {
   display: block;
