@@ -66,7 +66,9 @@ func readOnce(ctx context.Context, client *http.Client, url string) (int64, bool
 
 // Run returns (latencyMs, downloadMbps, uploadMbps). Each throughput phase
 // reads or writes for up to phaseDuration; partial phases still measure.
-func Run(ctx context.Context) (float64, float64, float64, error) {
+// downloadURL points at a large file on a well-connected server
+// (BIFROST_AGENT_SPEEDTEST_URL); latency and upload use Cloudflare anycast.
+func Run(ctx context.Context, downloadURL string) (float64, float64, float64, error) {
 	client := &http.Client{}
 
 	// Warm up the connection, then take the best of three tiny round trips.
@@ -87,7 +89,7 @@ func Run(ctx context.Context) (float64, float64, float64, error) {
 	// Download: one sustained single-stream read against a large test file —
 	// a burst of small requests trips Cloudflare's per-IP rate limiter (429),
 	// so Cloudflare is only the fallback, in capped 25MB chunks.
-	received, elapsed := timedDownload(ctx, client, "https://fsn1-speed.hetzner.com/10GB.bin")
+	received, elapsed := timedDownload(ctx, client, downloadURL)
 	if received == 0 {
 		downCtx, cancelDown := context.WithTimeout(ctx, phaseDuration)
 		for downCtx.Err() == nil {

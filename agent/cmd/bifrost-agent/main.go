@@ -84,7 +84,7 @@ func main() {
 	}
 
 	client.OnSpeedtest = func(id int64) {
-		latency, down, up, err := speedtest.Run(ctx)
+		latency, down, up, err := speedtest.Run(ctx, cfg.SpeedtestURL)
 		result := &protocol.SpeedtestResult{
 			T: "speedtest_result", TS: time.Now().Unix(), RequestID: id,
 			LatencyMs: latency, DownloadMbps: down, UploadMbps: up,

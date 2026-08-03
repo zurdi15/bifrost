@@ -16,6 +16,9 @@ type Config struct {
 	EnrollToken     string
 	NodeName        string
 	MetricsInterval time.Duration
+	// Download target for speedtests; latency/upload always use Cloudflare
+	// anycast (nearest PoP). Pick a well-connected file server near you.
+	SpeedtestURL string
 }
 
 func FromEnv() (*Config, error) {
@@ -28,6 +31,10 @@ func FromEnv() (*Config, error) {
 		return nil, fmt.Errorf("BIFROST_AGENT_ENROLL_TOKEN is required")
 	}
 
+	speedtestURL := os.Getenv("BIFROST_AGENT_SPEEDTEST_URL")
+	if speedtestURL == "" {
+		speedtestURL = "https://fsn1-speed.hetzner.com/10GB.bin"
+	}
 	name := os.Getenv("BIFROST_AGENT_NODE_NAME")
 	if name == "" {
 		name = hostHostname()
@@ -45,6 +52,7 @@ func FromEnv() (*Config, error) {
 	return &Config{
 		HubURL:          hubURL,
 		EnrollToken:     token,
+		SpeedtestURL:    speedtestURL,
 		NodeName:        name,
 		MetricsInterval: interval,
 	}, nil
