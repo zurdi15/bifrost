@@ -90,7 +90,12 @@ def test_gateway_routes(client):
         routes = client.get("/api/v1/gateway/routes").json()
         assert routes == [
             {"host": "blog.other.example", "node": "testnode", "port": 8081, "container": "blog"},
-            {"host": "grafana.lab.example", "node": "testnode", "port": 3000, "container": "grafana"},
+            {
+                "host": "grafana.lab.example",
+                "node": "testnode",
+                "port": 3000,
+                "container": "grafana",
+            },
             {"host": "romm.lab.example", "node": "testnode", "port": 8085, "container": "romm"},
         ]
 
@@ -120,7 +125,9 @@ def test_gateway_derived_routes(client, monkeypatch):
                     # two published ports, no hint → ambiguous, skipped
                     container("torrent", ["9091:9091/tcp", "51413:51413/tcp"], {}),
                     # bifrost.port resolves the ambiguity → derived
-                    container("minio", ["9000:9000/tcp", "9001:9001/tcp"], {"bifrost.port": "9001"}),
+                    container(
+                        "minio", ["9000:9000/tcp", "9001:9001/tcp"], {"bifrost.port": "9001"}
+                    ),
                     # opted out
                     container("private", ["8080:80/tcp"], {"bifrost.expose": "false"}),
                     # explicit URL still wins over the convention name
