@@ -50,22 +50,30 @@ func Run(ctx context.Context) (float64, float64, float64, error) {
 		}
 	}
 
-	// Download: read as much as the window allows.
+	// Download: 100MB requests back to back until the window closes — the
+	// endpoint caps single responses, so one huge request just errors small.
 	downCtx, cancelDown := context.WithTimeout(ctx, phaseDuration)
 	defer cancelDown()
-	req, err := http.NewRequestWithContext(
-		downCtx, http.MethodGet, base+"/__down?bytes=1000000000", nil,
-	)
-	if err != nil {
-		return 0, 0, 0, err
-	}
+	var received int64
 	start := time.Now()
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, 0, 0, err
+	for downCtx.Err() == nil {
+		req, derr := http.NewRequestWithContext(
+			downCtx, http.MethodGet, base+"/__down?bytes=104857600", nil,
+		)
+		if derr != nil {
+			return 0, 0, 0, derr
+		}
+		resp, derr := client.Do(req)
+		if derr != nil {
+			break // deadline cut is expected
+		}
+		n, _ := io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			break
+		}
+		received += n
 	}
-	received, _ := io.Copy(io.Discard, resp.Body) // deadline cut is expected
-	resp.Body.Close()
 	downMbps := float64(received) * 8 / time.Since(start).Seconds() / 1e6
 
 	// Upload: stream zeros until the window closes.
