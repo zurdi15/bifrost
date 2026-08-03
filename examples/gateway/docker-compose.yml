@@ -1,0 +1,47 @@
+services:
+  caddy:
+    container_name: caddy
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - bifrost-routes:/etc/caddy/bifrost.d:ro
+      - caddy-data:/data # ACME account + issued certs (persist this!)
+      - caddy-config:/config
+    labels:
+      - "bifrost.hide=true" # the gateway itself is not a service card
+    networks:
+      - gateway
+
+  # Renders one vhost per bifrost-advertised Docker service into bifrost.d/
+  # and hot-reloads caddy through its admin API. No host setup: the whole
+  # gateway is this one compose.
+  caddy-sync:
+    container_name: caddy-sync
+    build: ./caddy-sync
+    restart: unless-stopped
+    env_file:
+      - .env # HUB_URL + DOMAIN (and NODE_ADDR_* overrides if needed)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - bifrost-routes:/etc/caddy/bifrost.d
+    labels:
+      - "bifrost.hide=true"
+    networks:
+      - gateway
+    depends_on:
+      - caddy
+
+volumes:
+  bifrost-routes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  gateway:

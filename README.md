@@ -38,6 +38,10 @@ Set `BIFROST_ENROLL_TOKEN` on the hub and `BIFROST_AGENT_ENROLL_TOKEN` +
 `BIFROST_AGENT_HUB_URL` on each agent. That's it — nodes appear in the dashboard as they
 connect.
 
+Want every service reachable at `https://<name>.<your-domain>`, with zero
+labels in the common case? Add the reverse-proxy gateway:
+[examples/gateway](examples/gateway/README.md).
+
 ## Design principles
 
 - **Infrastructure-agnostic.** Any mix of bare Docker hosts, NAS boxes, Raspberry Pis and
