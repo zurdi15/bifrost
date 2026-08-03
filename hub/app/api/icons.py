@@ -145,6 +145,30 @@ async def portal_icon(uuid: str):  # noqa: ANN201
                     body = response.content
                     media = kind or "image/x-icon"
                     break
+            if body is None:
+                # Portals with off-root icons declare them in the shell page —
+                # follow redirects, read the <link rel=icon>, resolve relative.
+                from urllib.parse import urljoin
+
+                link_re = (
+                    r"""<link[^>]*rel=["'][^"']*icon[^"']*["'][^>]*href=["']([^"']+)["']"""
+                )
+                link_re_rev = (
+                    r"""<link[^>]*href=["']([^"']+)["'][^>]*rel=["'][^"']*icon[^"']*["']"""
+                )
+                try:
+                    page = await client.get(base + "/")
+                    match = re.search(link_re, page.text, re.IGNORECASE) or re.search(
+                        link_re_rev, page.text, re.IGNORECASE
+                    )
+                    if match:
+                        icon = await client.get(urljoin(str(page.url), match.group(1)))
+                        kind = icon.headers.get("content-type", "")
+                        if icon.status_code == 200 and icon.content and "text/html" not in kind:
+                            body = icon.content
+                            media = kind or "image/x-icon"
+                except httpx.HTTPError:
+                    pass
     _portal_cache[uuid] = (time.monotonic() + CACHE_TTL_S, media, body)
     if body is None:
         raise HTTPException(status_code=404)
