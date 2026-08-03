@@ -135,3 +135,12 @@ body {
 .bf-tip-bl:focus-visible::after {
   translate: 0 0;
 }
+
+/* During a view transition every named group renders in the browser's top
+   layer; without an explicit order the node-card hero morphs can paint over
+   the persistent chrome. Keep hairline/topbar/dock above content groups. */
+::view-transition-group(bf-hairline),
+::view-transition-group(bf-topbar),
+::view-transition-group(bf-dock) {
+  z-index: 30;
+}
