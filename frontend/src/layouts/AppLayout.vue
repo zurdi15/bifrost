@@ -104,7 +104,11 @@ const hubDown = computed(() => live.connection !== 'live');
 
     <!-- Mobile: the topbar nav collapses into a floating glass dock.
          Icons only; the label lives in aria/title. -->
-    <nav class="dock" :style="{ '--i': activeIndex }" :aria-label="t('nav.dashboard')">
+    <nav
+      class="dock"
+      :style="{ '--i': activeIndex, '--n': NAV.length }"
+      :aria-label="t('nav.dashboard')"
+    >
       <span class="dock-pill" aria-hidden="true" />
       <RouterLink
         v-for="item in NAV"
@@ -271,13 +275,17 @@ const hubDown = computed(() => live.connection !== 'live');
     padding: 0.5rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
   }
   .dock {
+    /* Items shrink so any count of tabs fits the narrowest phones; the pill
+       shares the same vars so its slide always lands on the active icon. */
+    --dock-item: min(2.9rem, calc((100vw - 3.5rem) / var(--n, 6)));
+    --dock-gap: 0.15rem;
     position: fixed;
     bottom: calc(0.8rem + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
     display: flex;
-    gap: 0.15rem;
+    gap: var(--dock-gap);
     padding: 0.3rem;
     border: 1px solid var(--bf-line);
     border-radius: var(--bf-radius-pill);
@@ -290,11 +298,11 @@ const hubDown = computed(() => live.connection !== 'live');
     position: absolute;
     top: 0.3rem;
     left: 0.3rem;
-    width: 2.9rem;
-    height: 2.9rem;
+    width: var(--dock-item);
+    height: var(--dock-item);
     border-radius: var(--bf-radius-pill);
     background: var(--bf-brand-tint);
-    transform: translateX(calc(var(--i) * (2.9rem + 0.15rem)));
+    transform: translateX(calc(var(--i) * (var(--dock-item) + var(--dock-gap))));
     transition: transform var(--bf-dur-300) var(--bf-ease-spring);
   }
   .dock-link {
@@ -303,8 +311,8 @@ const hubDown = computed(() => live.connection !== 'live');
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.9rem;
-    height: 2.9rem;
+    width: var(--dock-item);
+    height: var(--dock-item);
     border-radius: var(--bf-radius-pill);
     text-decoration: none;
     color: var(--bf-ink-muted);
