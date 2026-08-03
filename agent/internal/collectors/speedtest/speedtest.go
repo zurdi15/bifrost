@@ -50,7 +50,7 @@ func Run(ctx context.Context) (float64, float64, float64, error) {
 		}
 	}
 
-	// Download: 100MB requests back to back until the window closes — the
+	// Download: 25MB requests back to back until the window closes — the
 	// endpoint caps single responses, so one huge request just errors small.
 	downCtx, cancelDown := context.WithTimeout(ctx, phaseDuration)
 	defer cancelDown()
@@ -58,7 +58,7 @@ func Run(ctx context.Context) (float64, float64, float64, error) {
 	start := time.Now()
 	for downCtx.Err() == nil {
 		req, derr := http.NewRequestWithContext(
-			downCtx, http.MethodGet, base+"/__down?bytes=104857600", nil,
+			downCtx, http.MethodGet, base+"/__down?bytes=25000000", nil,
 		)
 		if derr != nil {
 			return 0, 0, 0, derr
