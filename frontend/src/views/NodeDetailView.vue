@@ -61,6 +61,33 @@ function openUrlEditor(): void {
   editingUrl.value = true;
 }
 
+const speedtesting = ref(false);
+interface SpeedtestResult {
+  latency_ms: number | null;
+  download_mbps: number | null;
+  upload_mbps: number | null;
+  error?: string;
+}
+const speedtestResult = ref<SpeedtestResult | null>(null);
+const speedtestError = ref('');
+
+async function runSpeedtest(): Promise<void> {
+  speedtesting.value = true;
+  speedtestError.value = '';
+  speedtestResult.value = null;
+  try {
+    const response = await fetch(`/api/v1/nodes/${uuid.value}/speedtest`, { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = (await response.json()) as SpeedtestResult;
+    if (result.error) speedtestError.value = result.error;
+    else speedtestResult.value = result;
+  } catch {
+    speedtestError.value = t('detail.speedtestFailed');
+  } finally {
+    speedtesting.value = false;
+  }
+}
+
 async function saveUrl(): Promise<void> {
   savingUrl.value = true;
   try {
@@ -140,6 +167,18 @@ onMounted(async () => {
             {{ t('service.save') }}
           </BfButton>
         </form>
+      </span>
+
+      <span class="speed-zone">
+        <BfButton size="sm" :disabled="speedtesting || node.status !== 'online'" @click="runSpeedtest">
+          {{ speedtesting ? t('detail.speedtestRunning') : t('detail.speedtest') }}
+        </BfButton>
+        <span v-if="speedtestResult" class="speed-result bf-metric">
+          ↓ {{ Math.round(speedtestResult.download_mbps ?? 0) }} Mbps · ↑
+          {{ Math.round(speedtestResult.upload_mbps ?? 0) }} Mbps ·
+          {{ Math.round(speedtestResult.latency_ms ?? 0) }} ms
+        </span>
+        <BfChip v-if="speedtestError" tone="down">{{ speedtestError }}</BfChip>
       </span>
     </header>
 
@@ -272,6 +311,15 @@ onMounted(async () => {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--bf-ink-strong);
+}
+.speed-zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.speed-result {
+  font-size: 0.8rem;
+  color: var(--bf-ink-secondary);
 }
 .url-zone {
   display: inline-flex;

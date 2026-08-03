@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import hashlib
+import itertools
 import logging
 import secrets
 import time
@@ -28,6 +29,25 @@ CLOCK_SKEW_TOLERANCE_S = 30
 # Close codes (WebSocket application range)
 WS_UNAUTHORIZED = 4401
 WS_FORBIDDEN = 4403
+
+
+_speedtest_ids = itertools.count(1)
+speedtest_pending: dict[int, asyncio.Future] = {}
+
+
+async def request_speedtest(registry: AgentRegistry, node_uuid: str) -> dict:
+    """Ask the node's live agent for a speedtest and await its answer."""
+    conn = registry.get(node_uuid)
+    if conn is None:
+        raise LookupError(node_uuid)
+    request_id = next(_speedtest_ids)
+    future: asyncio.Future = asyncio.get_running_loop().create_future()
+    speedtest_pending[request_id] = future
+    try:
+        await conn.ws.send_text(proto.Speedtest(id=request_id).model_dump_json())
+        return await asyncio.wait_for(future, timeout=90)
+    finally:
+        speedtest_pending.pop(request_id, None)
 
 
 def sha256_hex(value: str) -> str:
@@ -201,6 +221,19 @@ async def agent_ws(ws: WebSocket) -> None:
                     "metrics.live",
                     {"uuid": node_uuid, "ts": ts, "samples": dict(samples)},
                 )
+            elif isinstance(msg, proto.SpeedtestResult):
+                conn.last_seq = msg.seq
+                result = {
+                    "uuid": node_uuid,
+                    "latency_ms": msg.latency_ms,
+                    "download_mbps": msg.download_mbps,
+                    "upload_mbps": msg.upload_mbps,
+                    "error": msg.error,
+                }
+                future = speedtest_pending.get(msg.request_id)
+                if future is not None and not future.done():
+                    future.set_result(result)
+                bus.publish("node.speedtest", result)
             elif isinstance(msg, proto.Fs):
                 with session_scope() as session:
                     serialized_mounts = handlers.apply_fs(session, node_id, msg.mounts)

@@ -179,3 +179,16 @@ def node_fs(uuid: str, session: Session = Depends(get_session)) -> list[dict]:
 @router.delete("/nodes/{uuid}", status_code=204)
 def delete_node(uuid: str, session: Session = Depends(get_session)) -> None:
     session.delete(_get_node(session, uuid))
+
+
+@router.post("/nodes/{uuid}/speedtest")
+async def node_speedtest(uuid: str, request: Request) -> dict:
+    """Run a speedtest on the node's agent and wait for the result."""
+    from app.ws import agent_ws
+
+    try:
+        return await agent_ws.request_speedtest(request.app.state.agent_registry, uuid)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="node not connected") from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="speedtest timed out") from exc

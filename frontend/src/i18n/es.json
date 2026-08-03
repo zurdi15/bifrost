@@ -40,7 +40,10 @@
     "stale": "colgado",
     "noHistory": "Aún no hay histórico",
     "setUrl": "editar URL del dashboard",
-    "urlPlaceholder": "https://nas.ejemplo:5443"
+    "urlPlaceholder": "https://nas.ejemplo:5443",
+    "speedtest": "speedtest",
+    "speedtestRunning": "midiendo…",
+    "speedtestFailed": "el speedtest falló"
   },
   "services": {
     "title": "Servicios",

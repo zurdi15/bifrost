@@ -4,6 +4,7 @@ import time
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from app.ingest import protocol as proto
 from tests.conftest import agent_headers, hello_frame, metrics_frame
 
 
@@ -220,3 +221,21 @@ def test_rename_and_delete_node(client):
 
     assert client.delete(f"/api/v1/nodes/{node_uuid}").status_code == 204
     assert client.get(f"/api/v1/nodes/{node_uuid}").status_code == 404
+
+
+def test_speedtest_result_frame_parses():
+    frame = proto.parse_agent_message(
+        json.dumps(
+            {
+                "t": "speedtest_result", "seq": 9, "ts": 1700000000, "request_id": 3,
+                "latency_ms": 12.5, "download_mbps": 940.2, "upload_mbps": 810.7,
+            }
+        )
+    )
+    assert isinstance(frame, proto.SpeedtestResult)
+    assert frame.download_mbps == 940.2
+
+
+def test_speedtest_endpoint_when_agent_offline(client):
+    response = client.post("/api/v1/nodes/no-such-node/speedtest")
+    assert response.status_code == 404

@@ -40,7 +40,10 @@
     "stale": "stale",
     "noHistory": "No history",
     "setUrl": "set dashboard URL",
-    "urlPlaceholder": "https://nas.example:5443"
+    "urlPlaceholder": "https://nas.example:5443",
+    "speedtest": "speedtest",
+    "speedtestRunning": "measuring…",
+    "speedtestFailed": "speedtest failed"
   },
   "services": {
     "title": "Services",

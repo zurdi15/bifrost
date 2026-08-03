@@ -16,6 +16,7 @@ import (
 	fscol "github.com/zurdi15/bifrost/agent/internal/collectors/fs"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/k8sdetect"
 	smartcol "github.com/zurdi15/bifrost/agent/internal/collectors/smart"
+	"github.com/zurdi15/bifrost/agent/internal/collectors/speedtest"
 	"github.com/zurdi15/bifrost/agent/internal/collectors/system"
 	"github.com/zurdi15/bifrost/agent/internal/config"
 	"github.com/zurdi15/bifrost/agent/internal/protocol"
@@ -79,6 +80,21 @@ func main() {
 		}
 		if c.SmartIntervalS > 0 {
 			smartIntervalSecs.Store(int64(c.SmartIntervalS))
+		}
+	}
+
+	client.OnSpeedtest = func(id int64) {
+		latency, down, up, err := speedtest.Run(ctx)
+		result := &protocol.SpeedtestResult{
+			T: "speedtest_result", TS: time.Now().Unix(), RequestID: id,
+			LatencyMs: latency, DownloadMbps: down, UploadMbps: up,
+		}
+		if err != nil {
+			result.Error = err.Error()
+		}
+		select {
+		case client.Out <- result:
+		default:
 		}
 	}
 

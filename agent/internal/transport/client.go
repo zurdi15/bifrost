@@ -46,6 +46,9 @@ type Client struct {
 
 	// OnConfig fires on hello_ack and on live config pushes from the hub.
 	OnConfig func(protocol.AgentConfig)
+	// OnSpeedtest fires when the hub asks for a speedtest; runs in its own
+	// goroutine so a slow test never blocks the read loop.
+	OnSpeedtest func(id int64)
 
 	heartbeatInterval atomic.Int64 // seconds
 }
@@ -303,6 +306,13 @@ func (c *Client) handleMessage(data []byte) error {
 		var errMsg protocol.ErrorMsg
 		_ = json.Unmarshal(data, &errMsg)
 		return fmt.Errorf("hub error %s: %s", errMsg.Code, errMsg.Msg)
+	case "speedtest":
+		var req struct {
+			ID int64 `json:"id"`
+		}
+		if json.Unmarshal(data, &req) == nil && c.OnSpeedtest != nil {
+			go c.OnSpeedtest(req.ID)
+		}
 	case "resync":
 		// Full-snapshot messages (containers, smart) arrive in later phases.
 	}

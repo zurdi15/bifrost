@@ -157,6 +157,24 @@ class Heartbeat(_Msg):
     ts: int
 
 
+class Speedtest(BaseModel):
+    """Hub→agent: run a speedtest and answer with the same id."""
+
+    t: Literal["speedtest"] = "speedtest"
+    id: int
+
+
+class SpeedtestResult(_Msg):
+    t: Literal["speedtest_result"]
+    seq: int
+    ts: int
+    request_id: int = 0
+    latency_ms: float | None = None
+    download_mbps: float | None = None
+    upload_mbps: float | None = None
+    error: str = ""
+
+
 AgentToHub = Annotated[
     Hello
     | Metrics
@@ -166,6 +184,7 @@ AgentToHub = Annotated[
     | ContainerStats
     | Smart
     | K8sDetected
+    | SpeedtestResult
     | Heartbeat,
     Field(discriminator="t"),
 ]

@@ -137,6 +137,18 @@ type K8sDetected struct {
 	Kubeconfig  string `json:"kubeconfig"`
 }
 
+// SpeedtestResult answers a hub-triggered speedtest request.
+type SpeedtestResult struct {
+	T            string  `json:"t"`
+	Seq          uint64  `json:"seq"`
+	TS           int64   `json:"ts"`
+	RequestID    int64   `json:"request_id"`
+	LatencyMs    float64 `json:"latency_ms"`
+	DownloadMbps float64 `json:"download_mbps"`
+	UploadMbps   float64 `json:"upload_mbps"`
+	Error        string  `json:"error,omitempty"`
+}
+
 // Sequenced is any agent→hub data frame the transport numbers and buffers.
 type Sequenced interface{ SetSeq(seq uint64) }
 
@@ -147,6 +159,7 @@ func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
 func (m *ContainerStats) SetSeq(seq uint64) { m.Seq = seq }
 func (m *Smart) SetSeq(seq uint64)          { m.Seq = seq }
 func (m *K8sDetected) SetSeq(seq uint64)    { m.Seq = seq }
+func (m *SpeedtestResult) SetSeq(seq uint64) { m.Seq = seq }
 
 func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []string) Hello {
 	return Hello{
