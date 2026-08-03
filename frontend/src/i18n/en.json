@@ -74,6 +74,7 @@
     "nodes": "Nodes",
     "storage": "Storage",
     "jobs": "Jobs",
+    "gateway": "Gateway",
     "settings": "Alerts",
     "edit": "edit layout"
   },
@@ -142,5 +143,27 @@
     "disable": "disable",
     "testOk": "test notification sent ✓",
     "testFail": "delivery failed"
+  },
+  "gateway": {
+    "title": "Gateway",
+    "routed": "Routed services",
+    "excluded": "Not routed",
+    "noDomain": "No service domain configured — set BIFROST_SERVICE_DOMAIN on the hub so label-less containers get https://<name>.<domain> URLs and the gateway feed.",
+    "noRoutes": "No routed Docker services yet — label a container with bifrost.url, or publish a single TCP port and let the convention name it.",
+    "allRouted": "Every eligible container is routed.",
+    "derived": "derived",
+    "explicit": "label",
+    "hidden": "hidden",
+    "reasons": {
+      "opted_out": "opted out (bifrost.expose=false)",
+      "no_domain": "no bifrost.url label and no service domain to derive one",
+      "ambiguous_ports": "several published ports — pick one with bifrost.port",
+      "no_ports": "no host-published TCP port — publish one or set bifrost.port",
+      "ingress_conflict": "hostname already served by a k8s Ingress",
+      "outside_domain": "hostname outside the gateway domain",
+      "no_port": "no routable port",
+      "duplicate_host": "hostname already taken by another container",
+      "bad_url": "bifrost.url is not a valid URL"
+    }
   }
 }

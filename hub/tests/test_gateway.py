@@ -175,3 +175,36 @@ def test_gateway_derived_yields_to_ingress(client, monkeypatch):
 
         hosts = [r["host"] for r in client.get("/api/v1/gateway/routes").json()]
         assert hosts == ["romm.lab.example"]
+
+
+def test_gateway_report(client, monkeypatch):
+    monkeypatch.setattr(settings, "service_domain", "lab.example")
+    with client.websocket_connect("/api/ws/agent", headers=agent_headers()) as ws:
+        ws.send_text(hello_frame())
+        json.loads(ws.receive_text())
+        ws.send_text(
+            containers_full_frame(
+                1,
+                [
+                    container("jelly", ["8096:8096/tcp"], {}),
+                    container("torrent", ["9091:9091/tcp", "51413:51413/tcp"], {}),
+                    container("private", ["8080:80/tcp"], {"bifrost.expose": "false"}),
+                    container("agent", [], {}),
+                ],
+            )
+        )
+        wait_for(lambda: client.get("/api/v1/gateway/routes").json() or None)
+
+        report = client.get("/api/v1/gateway/report").json()
+        assert report["domain"] == "lab.example"
+        assert [r["host"] for r in report["routes"]] == ["jelly.lab.example"]
+        assert report["routes"][0]["source"] == "derived"
+        reasons = {e["container"]: e["reason"] for e in report["excluded"]}
+        assert reasons == {
+            "torrent": "ambiguous_ports",
+            "private": "opted_out",
+            "agent": "no_ports",
+    }
+        # The machine feed keeps its stable four-field shape.
+        feed = client.get("/api/v1/gateway/routes").json()
+        assert set(feed[0].keys()) == {"host", "node", "port", "container"}

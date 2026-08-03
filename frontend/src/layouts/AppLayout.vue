@@ -7,6 +7,7 @@ import {
   mdiCalendarClock,
   mdiHarddisk,
   mdiPencilOutline,
+  mdiRouterNetwork,
   mdiServer,
   mdiViewDashboardOutline,
 } from '@mdi/js';
@@ -32,6 +33,7 @@ const NAV = [
   { to: '/nodes', key: 'nav.nodes', icon: mdiServer, exact: false },
   { to: '/storage', key: 'nav.storage', icon: mdiHarddisk, exact: false },
   { to: '/jobs', key: 'nav.jobs', icon: mdiCalendarClock, exact: false },
+  { to: '/gateway', key: 'nav.gateway', icon: mdiRouterNetwork, exact: false },
   { to: '/settings', key: 'nav.settings', icon: mdiBellOutline, exact: false },
 ];
 
