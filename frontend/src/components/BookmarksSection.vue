@@ -228,7 +228,7 @@ async function remove(): Promise<void> {
       </BfButton>
     </form>
 
-    <footer class="foot">
+    <footer v-if="ui.editing" class="foot">
       <BfButton
         size="sm"
         :variant="editing === 0 ? 'ghost' : undefined"

@@ -110,9 +110,6 @@ watch(
       >
         <BfIcon :path="mdiOpenInNew" :size="13" />
       </button>
-      <BfChip v-if="isDown" tone="down" mono class="bf-pop-in">
-        {{ t(`status.${node.status}`) }}
-      </BfChip>
       <template v-if="node.status === 'pending'">
         <BfChip tone="warn" mono>{{ t('status.pending') }}</BfChip>
         <BfButton size="sm" variant="primary" :disabled="approving" @click="approve">
@@ -188,8 +185,12 @@ watch(
         </div>
       </div>
 
-      <p v-if="isDown && node.last_seen" class="last-seen bf-metric">
-        {{ t('nodes.lastSeen') }} {{ formatClock(node.last_seen) }}
+      <!-- Always rendered: reserving the line keeps every card the same
+           height whether the node is up or down. -->
+      <p class="last-seen bf-metric">
+        <template v-if="isDown && node.last_seen">
+          {{ t('nodes.lastSeen') }} {{ formatClock(node.last_seen) }}
+        </template>
       </p>
     </div>
   </BfCard>
@@ -273,6 +274,9 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  /* Gauges vanish when a node stops reporting; the row must not collapse
+     with them — cards keep one height regardless of status. */
+  min-height: 64px;
 }
 .stats {
   display: flex;
@@ -301,6 +305,7 @@ watch(
 .last-seen {
   margin: 0;
   font-size: 0.75rem;
+  min-height: 1.1em;
   color: var(--bf-status-down);
 }
 .check-kind {

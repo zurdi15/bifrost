@@ -10,13 +10,14 @@ import BfSkeleton from '@/lib/structural/BfSkeleton.vue';
 import type { NodeInfo } from '@/api/types';
 import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
+import { useUiStore } from '@/stores/ui';
 
 const { t } = useI18n();
 const live = useLiveStore();
 const layout = useLayoutStore();
+const ui = useUiStore();
 
 const loading = computed(() => live.connection === 'connecting' && live.nodeList.length === 0);
-const downCount = computed(() => live.downNodes.length);
 const nodeId = (node: NodeInfo): string => node.uuid;
 const agentNodes = computed(() => live.nodeList.filter((n) => n.kind !== 'endpoint'));
 const endpointNodes = computed(() => live.nodeList.filter((n) => n.kind === 'endpoint'));
@@ -30,13 +31,10 @@ const orderedEndpoints = computed(() =>
   <section>
     <header class="section-head">
       <h2 class="title">{{ t('nodes.title') }}</h2>
+      <!-- The count says it all: anything short of total IS the down count. -->
       <BfChip mono>
         {{ t('nodes.up', { up: live.upCount, total: live.nodeList.length }) }}
       </BfChip>
-      <BfChip v-if="downCount > 0" tone="down" mono>
-        {{ t('nodes.down', { count: downCount }) }}
-      </BfChip>
-      <span class="head-actions"><EndpointForm /></span>
     </header>
 
     <!-- First load only: skeletons with the real card silhouette. -->
@@ -73,9 +71,13 @@ const orderedEndpoints = computed(() =>
       </template>
     </SortableList>
 
-    <template v-if="orderedEndpoints.length > 0">
+    <!-- Edit mode keeps the section visible even when empty so the first
+         endpoint can be added; the add button lives down here, like the
+         bookmark one. -->
+    <template v-if="orderedEndpoints.length > 0 || ui.editing">
       <h3 class="subtitle">{{ t('nodes.endpoints') }}</h3>
       <SortableList
+        v-if="orderedEndpoints.length > 0"
         class="grid bf-stagger"
         :items="orderedEndpoints"
         :id-of="nodeId"
@@ -87,6 +89,9 @@ const orderedEndpoints = computed(() =>
           </RouterLink>
         </template>
       </SortableList>
+      <footer v-if="ui.editing" class="foot">
+        <EndpointForm />
+      </footer>
     </template>
   </section>
 </template>
@@ -99,8 +104,10 @@ const orderedEndpoints = computed(() =>
   margin: 1rem 0 1.1rem;
   flex-wrap: wrap;
 }
-.head-actions {
-  margin-left: auto;
+.foot {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 1.2rem;
 }
 .title {
   margin: 0;

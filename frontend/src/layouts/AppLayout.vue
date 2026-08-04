@@ -14,14 +14,23 @@ import {
 
 import ConnectionPill from '@/components/ConnectionPill.vue';
 import TopbarWeather from '@/components/TopbarWeather.vue';
+import { LOCALES, persistLocale } from '@/i18n';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 import { useUiStore } from '@/stores/ui';
 import { formatClock } from '@/utils/format';
 
-const { t } = useI18n();
+const { t, locale } = useI18n({ useScope: 'global' });
 const live = useLiveStore();
+
+// en ⇄ es (cycles, so adding a locale later costs nothing here).
+function nextLocale(): void {
+  const at = LOCALES.indexOf(locale.value as (typeof LOCALES)[number]);
+  const next = LOCALES[(at + 1) % LOCALES.length];
+  locale.value = next;
+  persistLocale(next);
+}
 const ui = useUiStore();
 const route = useRoute();
 
@@ -81,6 +90,15 @@ const hubDown = computed(() => live.connection !== 'live');
         </RouterLink>
       </nav>
       <div class="right">
+        <button
+          class="lang bf-tip-bl bf-metric"
+          type="button"
+          :data-bf-tip="t('nav.language')"
+          :aria-label="t('nav.language')"
+          @click="nextLocale"
+        >
+          {{ String(locale).toUpperCase() }}
+        </button>
         <button
           class="edit-mode bf-tip-bl"
           :class="{ on: ui.editing }"
@@ -207,6 +225,30 @@ const hubDown = computed(() => live.connection !== 'live');
   align-items: center;
   justify-content: flex-end;
   gap: 0.9rem;
+}
+/* Language toggle: same quiet register as the edit button. */
+.lang {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--bf-radius-ctl);
+  background: transparent;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--bf-ink-faint);
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    opacity var(--bf-dur-150),
+    color var(--bf-dur-150);
+}
+.lang:hover {
+  opacity: 1;
+  color: var(--bf-ink);
 }
 /* Global edit mode: deliberately quiet until you need it. */
 .edit-mode {

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import BfButton from '@/lib/primitives/BfButton.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
+import { useUiStore } from '@/stores/ui';
 
 interface AlertRule {
   id: number;
@@ -18,6 +19,7 @@ interface AlertRule {
 }
 
 const { t } = useI18n();
+const ui = useUiStore();
 
 const rules = ref<AlertRule[]>([]);
 const feedback = ref('');
@@ -84,7 +86,8 @@ async function test(rule: AlertRule): Promise<void> {
       <span v-if="feedback" class="feedback bf-metric">{{ feedback }}</span>
     </header>
 
-    <BfCard class="add">
+    <!-- Adding rules is a layout-edit affordance, like every other "add". -->
+    <BfCard v-if="ui.editing" class="add">
       <form class="form" @submit.prevent="addRule">
         <input v-model="draft.name" class="field" :placeholder="t('alerts.name')" required />
         <select v-model="draft.kind" class="field">

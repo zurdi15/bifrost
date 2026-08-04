@@ -409,6 +409,18 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
   background: var(--bf-brand-tint);
 }
 
+/* Narrow screens: the expanded search field would shove the group/filter
+   pills off the left edge. While it's open the pills yield the row (exits
+   are instant by design); closing the search brings them straight back. */
+@media (max-width: 720px) {
+  .toolbar:has(.search.open) .action {
+    display: none;
+  }
+  .toolbar :deep(.search.open .search-input) {
+    width: clamp(11rem, 60vw, 16rem);
+  }
+}
+
 .dash {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

@@ -164,7 +164,7 @@ async function save(): Promise<void> {
         <span
           v-if="container.update"
           class="update-wrap bf-tip-bl"
-          :data-bf-tip="`→ ${container.update}`"
+          :data-bf-tip="container.update"
         >
           <BfIcon :path="mdiPackageUp" :size="14" />
         </span>
@@ -214,6 +214,11 @@ async function save(): Promise<void> {
           <BfChip v-if="container.meta.hide" tone="unknown">{{ t('service.hidden') }}</BfChip>
           <span class="node">{{ container.node_name }}</span>
         </footer>
+        <!-- Machines get a front panel: a strip of activity LEDs where the
+             app footer would be. Pure decoration, hence aria-hidden. -->
+        <span v-if="container.source === 'node'" class="rack" aria-hidden="true">
+          <i /><i /><i /><i /><i />
+        </span>
       </template>
     </BfCard>
   </component>
@@ -327,7 +332,8 @@ async function save(): Promise<void> {
   white-space: nowrap;
 }
 /* Node UIs are machines, not apps: chassis look — faint horizontal vents
-   across the surface, no footer (the name IS the node). */
+   across the surface, no footer (the name IS the node), and a front panel
+   of blinking activity LEDs, movie-server style. */
 .container-card.node-ui {
   background: repeating-linear-gradient(
     180deg,
@@ -340,6 +346,81 @@ async function save(): Promise<void> {
 }
 .container-card.node-ui .image {
   color: var(--bf-ink-muted);
+}
+.rack {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  min-height: 1rem;
+}
+.rack i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--bf-status-up);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-status-up) 70%, transparent);
+  animation: bf-led-data 2.1s steps(1, end) infinite;
+}
+/* Staggered periods so the panel never repeats visibly in sync. */
+.rack i:nth-child(2) {
+  animation-duration: 1.4s;
+  animation-delay: 0.35s;
+}
+.rack i:nth-child(3) {
+  animation-duration: 2.7s;
+  animation-delay: 0.9s;
+}
+.rack i:nth-child(4) {
+  background: var(--bf-brand);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-brand) 70%, transparent);
+  animation: bf-led-breathe 2.6s ease-in-out infinite;
+}
+.rack i:nth-child(5) {
+  background: var(--bf-status-warn);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-status-warn) 70%, transparent);
+  animation-duration: 3.7s;
+  animation-delay: 1.6s;
+}
+/* Hard on/off flicker — disk-activity language, not a smooth pulse. */
+@keyframes bf-led-data {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  11% {
+    opacity: 0.2;
+  }
+  17% {
+    opacity: 1;
+  }
+  43% {
+    opacity: 0.2;
+  }
+  48% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 0.25;
+  }
+  78% {
+    opacity: 1;
+  }
+}
+/* A dead machine has a dead panel — no blinking, no glow. */
+.is-down .rack i {
+  animation: none;
+  opacity: 0.25;
+  box-shadow: none;
+}
+/* The one soft light on the panel: a slow status breathe. */
+@keyframes bf-led-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .foot {
   display: flex;

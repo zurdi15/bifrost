@@ -300,4 +300,25 @@ watch(() => live.k8sVersion, load);
   font-size: 0.72rem;
   color: var(--bf-ink-muted);
 }
+/* Narrow screens: one crammed wrap-line is unreadable. The host (or the
+   container name) takes a full row of its own; chips, node, port and check
+   flow onto the next line(s) with real breathing room. */
+@media (max-width: 720px) {
+  .row {
+    row-gap: 0.55rem;
+    padding: 0.8rem 0.95rem;
+  }
+  .spacer {
+    display: none;
+  }
+  .host,
+  .name {
+    flex-basis: 100%;
+    font-size: 0.95rem;
+  }
+  .reason,
+  .detail {
+    flex-basis: 100%;
+  }
+}
 </style>

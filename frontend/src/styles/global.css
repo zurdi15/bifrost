@@ -135,6 +135,16 @@ body {
 .bf-tip-bl:focus-visible::after {
   translate: 0 0;
 }
+/* Cards trap their tooltips inside a stacking context (view-transition-name,
+   hover transforms): a tip's z-index can never beat a *sibling* card on its
+   own. Lift the whole card stack — the tip holder plus up to two ancestor
+   levels, enough to reach the grid/flex item — whenever a tip is hovered.
+   On ancestors where z-index doesn't apply it's simply ignored. */
+[data-bf-tip]:hover,
+*:has(> [data-bf-tip]:hover),
+*:has(> * > [data-bf-tip]:hover) {
+  z-index: 45;
+}
 
 /* During a view transition every named group renders in the browser's top
    layer; without an explicit order the node-card hero morphs can paint over

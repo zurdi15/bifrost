@@ -2,7 +2,6 @@
   "nodes": {
     "title": "Nodos",
     "up": "{up}/{total} activos",
-    "down": "{count} CAÍDOS",
     "empty": "Sin nodos",
     "lastSeen": "visto por última vez",
     "uptime": "uptime",
@@ -92,7 +91,8 @@
     "jobs": "Jobs",
     "gateway": "Gateway",
     "settings": "Alertas",
-    "edit": "editar layout"
+    "edit": "editar layout",
+    "language": "idioma"
   },
   "bookmarks": {
     "title": "Marcadores",
