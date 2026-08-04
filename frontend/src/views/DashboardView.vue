@@ -4,13 +4,12 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { mdiChevronDown, mdiEyeOffOutline } from '@mdi/js';
 
-import AmbientSection from '@/components/AmbientSection.vue';
 import BookmarksSection from '@/components/BookmarksSection.vue';
+import ContainerCard from '@/components/ContainerCard.vue';
 import ExpandingSearch from '@/components/ExpandingSearch.vue';
 import ServicesSection from '@/components/ServicesSection.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import { GROUP_MODES, useDashboardStore } from '@/stores/dashboard';
-import { useLayoutStore } from '@/stores/layout';
 import { useLiveStore } from '@/stores/live';
 import { useUiStore } from '@/stores/ui';
 
@@ -59,18 +58,21 @@ onBeforeUnmount(() => {
 });
 
 const ui = useUiStore();
-const layout = useLayoutStore();
 const live = useLiveStore();
 const dash = useDashboardStore();
+// Machines (node-UI cards) live in their own right-hand rail; every count
+// and grid below is services only.
+const nodeCards = computed(() => live.containerList.filter((c) => c.source === 'node'));
+const gridContainers = computed(() => live.containerList.filter((c) => c.source !== 'node'));
 const runningCount = computed(
-  () => live.containerList.filter((c) => c.state === 'running').length,
+  () => gridContainers.value.filter((c) => c.state === 'running').length,
 );
 
 // ── shared toolbar ──
 // It lives up here, outside the tab swap, so the search never remounts when
 // changing tabs; group-by/filter-by simply vanish on the bookmarks tab.
 const hasServices = computed(
-  () => live.containerList.length > 0 || live.hiddenContainers.length > 0,
+  () => gridContainers.value.length > 0 || live.hiddenContainers.length > 0,
 );
 const sources = computed(() => {
   const seen = new Map<string, string>();
@@ -107,9 +109,8 @@ function onDocPointerDown(event: PointerEvent): void {
     openPanel.value = null;
   }
 }
-// No widgets → give services the full width. Edit mode always shows the
-// rail so widgets can be added in the first place.
-const showAside = computed(() => ui.editing || layout.ambient.length > 0);
+// No machines → give services the full width.
+const showAside = computed(() => nodeCards.value.length > 0);
 </script>
 
 <template>
@@ -131,8 +132,8 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
           @click="tab = 'services'"
         >
           {{ t('services.title') }}
-          <span v-if="live.containerList.length > 0" class="tab-count bf-metric">
-            {{ runningCount }}/{{ live.containerList.length }}
+          <span v-if="gridContainers.length > 0" class="tab-count bf-metric">
+            {{ runningCount }}/{{ gridContainers.length }}
           </span>
         </button>
         <button
@@ -239,7 +240,19 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
       </div>
     </div>
 
-    <AmbientSection v-if="showAside" class="aside" />
+    <!-- Machines get their own rail where the ambient widgets used to sit:
+         one card wide, stacked, out of the service grids entirely. -->
+    <aside v-if="showAside" class="aside rail" :aria-label="t('nav.nodes')">
+      <h2 class="rail-title">{{ t('nav.nodes') }}</h2>
+      <div class="rail-stack bf-stagger">
+        <ContainerCard
+          v-for="(machine, i) in nodeCards"
+          :key="`${machine.node_uuid}:${machine.name}`"
+          :container="machine"
+          :style="{ '--i': i }"
+        />
+      </div>
+    </aside>
   </div>
 </template>
 
@@ -435,6 +448,26 @@ const showAside = computed(() => ui.editing || layout.ambient.length > 0);
     position: sticky;
     top: 0.5rem;
     margin-top: 0;
+  }
+}
+/* The rail title lines up with the toolbar row, so the first machine card
+   starts level with the first service group. */
+.rail-title {
+  margin: 2.7rem 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bf-ink-muted);
+}
+.rail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+@media (max-width: 1099px) {
+  .rail-title {
+    margin-top: 1.4rem;
   }
 }
 </style>

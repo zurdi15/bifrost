@@ -34,9 +34,9 @@ const filtered = computed(() =>
     (c) =>
       (!dash.nodeFilter || c.node_uuid === dash.nodeFilter) &&
       matchesQuery(c) &&
-      // Grouped by node, the bucket header carries the node UI link — a card
-      // for the node inside its own bucket would say nothing new.
-      !(dash.groupMode === 'node' && c.source === 'node'),
+      // Node-UI cards are machines, not services: they live in the
+      // dashboard's own rail, never inside the service grids.
+      c.source !== 'node',
   ),
 );
 
