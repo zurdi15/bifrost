@@ -52,9 +52,11 @@ WIDGETS = [
 ]
 
 
-def _containers(specs: list[tuple[str, str, str, str, dict[str, str]]]) -> list[dict]:
+def _containers(
+    specs: list[tuple[str, str, str, str, dict[str, str], list[str]]],
+) -> list[dict]:
     rows = []
-    for name, image, state, health, labels in specs:
+    for name, image, state, health, labels, ports in specs:
         rows.append(
             {
                 "container_id": hashlib.sha256(name.encode()).hexdigest()[:12],
@@ -62,7 +64,7 @@ def _containers(specs: list[tuple[str, str, str, str, dict[str, str]]]) -> list[
                 "image": image,
                 "state": state,
                 "health": health,
-                "ports": [],
+                "ports": ports,
                 "labels": labels,
                 "started_at": int(time.time()) - random.randint(3600, 400_000),
             }
@@ -70,31 +72,37 @@ def _containers(specs: list[tuple[str, str, str, str, dict[str, str]]]) -> list[
     return rows
 
 
+# Ports/labels are picked to exercise every gateway rule: derived routes,
+# an explicit bifrost.url, bifrost.path, bifrost.port disambiguation,
+# ambiguous ports, and honest no-port exclusions.
 JOTUN_CONTAINERS = _containers(
     [
         ("jellyfin", "linuxserver/jellyfin:10.9", "running", "healthy",
-         {"bifrost.group": "media", "bifrost.url": "http://localhost:8096"}),
+         {"bifrost.group": "media"}, ["8096:8096/tcp"]),
         ("sonarr", "linuxserver/sonarr:4.0", "running", "",
-         {"bifrost.group": "media"}),
+         {"bifrost.group": "media"}, ["8989:8989/tcp"]),
         ("radarr", "linuxserver/radarr:5.7", "running", "",
-         {"bifrost.group": "media"}),
+         {"bifrost.group": "media", "bifrost.url": "https://movies.example.net"},
+         ["7878:7878/tcp"]),
         ("pihole", "pihole/pihole:2026.02.0", "running", "healthy",
-         {"bifrost.group": "network", "bifrost.url": "http://localhost:8053"}),
+         {"bifrost.group": "network", "bifrost.path": "/admin"}, ["8053:80/tcp"]),
         ("unbound", "alpinelinux/unbound:latest", "running", "",
-         {"bifrost.group": "network"}),
-        ("caddy", "caddy:2.8", "running", "", {}),
-        ("postgres", "postgres:17-alpine", "running", "unhealthy", {}),
-        ("backup-runner", "restic/restic:0.17", "exited", "", {"bifrost.hide": "true"}),
+         {"bifrost.group": "network"}, ["53/udp"]),
+        ("caddy", "caddy:2.8", "running", "", {}, ["80:80/tcp", "443:443/tcp"]),
+        ("postgres", "postgres:17-alpine", "running", "unhealthy", {}, []),
+        ("backup-runner", "restic/restic:0.17", "exited", "",
+         {"bifrost.hide": "true"}, []),
     ]
 )
 
 VANAHEIM_CONTAINERS = _containers(
     [
         ("syncthing", "syncthing/syncthing:1.27", "running", "healthy",
-         {"bifrost.group": "storage", "bifrost.url": "http://localhost:8384"}),
+         {"bifrost.group": "storage"}, ["8384:8384/tcp"]),
         ("minio", "minio/minio:latest", "running", "",
-         {"bifrost.group": "storage"}),
-        ("scrutiny", "analogj/scrutiny:latest", "running", "", {}),
+         {"bifrost.group": "storage", "bifrost.port": "9001"},
+         ["9000:9000/tcp", "9001:9001/tcp"]),
+        ("scrutiny", "analogj/scrutiny:latest", "running", "", {}, []),
     ]
 )
 

@@ -46,6 +46,22 @@ nodes, and node-down detection is instant (socket close + application heartbeat)
 - **The details** — dark-first hand-built design system, CSS-only animations, EN/ES,
   drag-to-reorder edit mode, status as dots + tooltips everywhere.
 
+## A look around
+
+Screenshots from a local dev stack seeded with synthetic data (`./dev.sh --seed`):
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard — services grouped, node cards with live front-panel LEDs, ambient widgets" width="100%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/nodes.png" alt="Nodes — live gauges, endpoints, a down node" width="49%" />
+  <img src="docs/screenshots/gateway.png" alt="Gateway — routed services and exclusions with reasons" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/node-detail.png" alt="Node detail — metrics, speedtest, filesystems, history" width="49%" />
+  <img src="docs/screenshots/storage.png" alt="Storage — SMART health across nodes" width="49%" />
+</p>
+
 ## Quick start
 
 ```sh
