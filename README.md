@@ -2,7 +2,7 @@
   <img src="bifrost.svg" alt="" width="110" />
 </p>
 <p align="center">
-  <img src="bifrost-logo.svg" alt="BIFROST" width="440" />
+  <img src="bifrost-logo-runes.svg" alt="BIFROST" width="440" />
 </p>
 
 <h3 align="center" style="font-size: 25px;"><em>The bridge between you and your homelab.</em></h3>
