@@ -108,43 +108,54 @@ watch(() => live.k8sVersion, load);
           :padded="false"
           :style="{ '--i': i }"
         >
+          <!-- The l-* groups are invisible on desktop (display: contents keeps
+               today's single line) and become predictable rows on mobile:
+               host / tags + check / container·node·port. -->
           <div class="row">
-            <a
-              class="host"
-              :href="`https://${route.host}${route.path ?? ''}`"
-              target="_blank"
-              rel="noopener"
-            >
-              {{ route.host }}<span v-if="route.path" class="path">{{ route.path }}</span>
-            </a>
-            <BfChip :tone="route.source === 'derived' ? 'unknown' : 'neutral'">
-              {{ route.source === 'derived' ? t('gateway.derived') : t('gateway.explicit') }}
-            </BfChip>
-            <BfChip v-if="route.hide" tone="warn">{{ t('gateway.hidden') }}</BfChip>
+            <span class="l-host">
+              <a
+                class="host"
+                :href="`https://${route.host}${route.path ?? ''}`"
+                target="_blank"
+                rel="noopener"
+              >
+                {{ route.host }}<span v-if="route.path" class="path">{{ route.path }}</span>
+              </a>
+            </span>
+            <span class="l-tags">
+              <BfChip :tone="route.source === 'derived' ? 'unknown' : 'neutral'">
+                {{ route.source === 'derived' ? t('gateway.derived') : t('gateway.explicit') }}
+              </BfChip>
+              <BfChip v-if="route.hide" tone="warn">{{ t('gateway.hidden') }}</BfChip>
+            </span>
             <span class="spacer" />
-            <span class="where">{{ route.container }}</span>
-            <BfChip tone="neutral" mono>{{ route.node }}</BfChip>
-            <span class="port bf-metric">:{{ route.port }}</span>
-            <span
-              v-if="route.check"
-              class="bf-tip-bottom check-dot"
-              :data-bf-tip="checkTip(route.check)"
-            >
-              <BfStatusDot :status="route.check.ok ? 'online' : 'offline'" :size="8" />
+            <span class="l-where">
+              <span class="where">{{ route.container }}</span>
+              <BfChip tone="neutral" mono>{{ route.node }}</BfChip>
+              <span class="port bf-metric">:{{ route.port }}</span>
             </span>
-            <span
-              v-if="route.check?.ok && route.check.latency_ms != null"
-              class="latency bf-metric"
-            >
-              {{ Math.round(route.check.latency_ms) }} ms
+            <span class="l-check">
+              <span
+                v-if="route.check"
+                class="bf-tip-bottom check-dot"
+                :data-bf-tip="checkTip(route.check)"
+              >
+                <BfStatusDot :status="route.check.ok ? 'online' : 'offline'" :size="8" />
+              </span>
+              <span
+                v-if="route.check?.ok && route.check.latency_ms != null"
+                class="latency bf-metric"
+              >
+                {{ Math.round(route.check.latency_ms) }} ms
+              </span>
+              <BfChip
+                v-if="route.check?.cert_days != null && route.check.cert_days <= 14"
+                tone="warn"
+                mono
+              >
+                cert {{ route.check.cert_days }}d
+              </BfChip>
             </span>
-            <BfChip
-              v-if="route.check?.cert_days != null && route.check.cert_days <= 14"
-              tone="warn"
-              mono
-            >
-              cert {{ route.check.cert_days }}d
-            </BfChip>
           </div>
         </BfCard>
       </div>
@@ -164,12 +175,18 @@ watch(() => live.k8sVersion, load);
           :style="{ '--i': i }"
         >
           <div class="row">
-            <a class="host" :href="`https://${ingress.host}`" target="_blank" rel="noopener">
-              {{ ingress.host }}
-            </a>
-            <BfChip tone="neutral">Ingress</BfChip>
+            <span class="l-host">
+              <a class="host" :href="`https://${ingress.host}`" target="_blank" rel="noopener">
+                {{ ingress.host }}
+              </a>
+            </span>
+            <span class="l-tags">
+              <BfChip tone="neutral">Ingress</BfChip>
+            </span>
             <span class="spacer" />
-            <span class="where">{{ ingress.namespace }}/{{ ingress.name }}</span>
+            <span class="l-where">
+              <span class="where">{{ ingress.namespace }}/{{ ingress.name }}</span>
+            </span>
           </div>
         </BfCard>
       </div>
@@ -189,11 +206,17 @@ watch(() => live.k8sVersion, load);
           :style="{ '--i': i }"
         >
           <div class="row">
-            <span class="name">{{ item.container }}</span>
-            <BfChip tone="neutral" mono>{{ item.node }}</BfChip>
+            <span class="l-host">
+              <span class="name">{{ item.container }}</span>
+            </span>
+            <span class="l-tags">
+              <BfChip tone="neutral" mono>{{ item.node }}</BfChip>
+            </span>
             <span class="spacer" />
-            <span class="reason">{{ t(`gateway.reasons.${item.reason}`) }}</span>
-            <span v-if="item.detail" class="detail bf-metric">{{ item.detail }}</span>
+            <span class="l-where">
+              <span class="reason">{{ t(`gateway.reasons.${item.reason}`) }}</span>
+              <span v-if="item.detail" class="detail bf-metric">{{ item.detail }}</span>
+            </span>
           </div>
         </BfCard>
       </div>
@@ -300,24 +323,70 @@ watch(() => live.k8sVersion, load);
   font-size: 0.72rem;
   color: var(--bf-ink-muted);
 }
-/* Narrow screens: one crammed wrap-line is unreadable. The host (or the
-   container name) takes a full row of its own; chips, node, port and check
-   flow onto the next line(s) with real breathing room. */
+/* Desktop: the l-* groups dissolve — children join the row's single flex
+   line exactly as before. */
+.l-host,
+.l-tags,
+.l-where,
+.l-check {
+  display: contents;
+}
+/* Narrow screens: free-wrapping made every card wrap differently (and could
+   orphan the check dot on its own line). Fixed rows instead:
+     1. host / container name
+     2. tags on the left, check dot + latency on the right
+     3. container · node · port  (or reason · detail)               */
 @media (max-width: 720px) {
   .row {
-    row-gap: 0.55rem;
+    row-gap: 0.6rem;
     padding: 0.8rem 0.95rem;
   }
   .spacer {
     display: none;
   }
+  .l-host {
+    display: flex;
+    flex-basis: 100%;
+    min-width: 0;
+    order: 0;
+  }
   .host,
   .name {
-    flex-basis: 100%;
     font-size: 0.95rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .reason,
-  .detail {
+  .l-tags {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    order: 1;
+  }
+  .l-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-left: auto;
+    order: 2;
+  }
+  .l-where {
+    display: flex;
+    flex-basis: 100%;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.5rem;
+    min-width: 0;
+    order: 3;
+  }
+  .where {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .reason {
     flex-basis: 100%;
   }
 }

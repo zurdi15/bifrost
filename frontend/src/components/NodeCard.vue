@@ -275,8 +275,10 @@ watch(
   align-items: center;
   gap: 0.9rem;
   /* Gauges vanish when a node stops reporting; the row must not collapse
-     with them — cards keep one height regardless of status. */
-  min-height: 64px;
+     with them — cards keep one height regardless of status. 72px covers the
+     tallest occupant: the two-stat column (temp + uptime), not the 64px
+     gauges. */
+  min-height: 72px;
 }
 .stats {
   display: flex;

@@ -10,10 +10,11 @@ import BfChip from '@/lib/primitives/BfChip.vue';
 import BfIcon from '@/lib/primitives/BfIcon.vue';
 import BfCard from '@/lib/structural/BfCard.vue';
 import BfStatusDot from '@/lib/data/BfStatusDot.vue';
+import { desyncMs } from '@/composables/useDesync';
 import { useIconStore } from '@/stores/icons';
 import { useLiveStore } from '@/stores/live';
 import { useUiStore } from '@/stores/ui';
-import { formatBytes } from '@/utils/format';
+import { formatBps, formatBytes } from '@/utils/format';
 
 const props = defineProps<{ container: ContainerInfo }>();
 
@@ -72,6 +73,43 @@ const usage = computed(() => {
   if (container.mem_bytes !== null && container.mem_bytes !== undefined) {
     parts.push(formatBytes(container.mem_bytes, 0));
   }
+  return parts.join(' · ');
+});
+
+// ── front panel (node-UI cards) ────────────────────────────────────────────
+// The rack lights and the chassis glow are wired to the node's real
+// telemetry: LED flicker rate follows CPU, border neon follows network I/O.
+const nodeSamples = computed<Record<string, number>>(() =>
+  props.container.source === 'node'
+    ? (live.nodeList.find((n) => n.uuid === props.container.node_uuid)?.live?.samples ?? {})
+    : {},
+);
+const rackNetBps = computed(() =>
+  Object.entries(nodeSamples.value)
+    .filter(([name]) => name.startsWith('net.') && /\.(rx|tx)_bps$/.test(name))
+    .reduce((sum, [, value]) => sum + value, 0),
+);
+const rackStyle = computed(() => {
+  if (props.container.source !== 'node') return undefined;
+  const cpu = nodeSamples.value['cpu.pct'];
+  // Idle ticks lazily (×1.6), a pegged CPU gets frantic (×0.35).
+  const rate = cpu === undefined ? 1 : 1.6 - (Math.min(cpu, 100) / 100) * 1.25;
+  // Log scale: ~10 kB/s of idle chatter is invisible, tens of MB/s max out.
+  const bps = rackNetBps.value;
+  const glow = bps > 0 ? Math.min(Math.max((Math.log10(bps) - 4) / 3.5, 0), 1) : 0;
+  return {
+    '--rack-rate': rate.toFixed(2),
+    '--rack-glow': glow.toFixed(2),
+    // Same trick as BfStatusDot: a per-node phase offset so panels never
+    // blink in unison across cards.
+    '--rack-desync': String(desyncMs(props.container.node_uuid)),
+  };
+});
+const rackTip = computed(() => {
+  const cpu = nodeSamples.value['cpu.pct'];
+  const parts: string[] = [];
+  if (cpu !== undefined) parts.push(`cpu ${cpu.toFixed(0)}%`);
+  if (rackNetBps.value > 0) parts.push(`net ${formatBps(rackNetBps.value)}`);
   return parts.join(' · ');
 });
 
@@ -138,6 +176,7 @@ async function save(): Promise<void> {
         'is-down': status === 'offline' || status === 'disabled',
         'node-ui': container.source === 'node',
       }"
+      :style="rackStyle"
     >
       <form v-if="editing" class="edit-form" @submit.prevent="save" @click.stop>
         <input v-model="form.name" class="field" :placeholder="t('service.name')" />
@@ -215,8 +254,13 @@ async function save(): Promise<void> {
           <span class="node">{{ container.node_name }}</span>
         </footer>
         <!-- Machines get a front panel: a strip of activity LEDs where the
-             app footer would be. Pure decoration, hence aria-hidden. -->
-        <span v-if="container.source === 'node'" class="rack" aria-hidden="true">
+             app footer would be, blinking to the node's real telemetry. -->
+        <span
+          v-if="container.source === 'node'"
+          class="rack"
+          :data-bf-tip="rackTip || undefined"
+          aria-hidden="true"
+        >
           <i /><i /><i /><i /><i />
         </span>
       </template>
@@ -340,6 +384,42 @@ async function save(): Promise<void> {
     transparent 0 5px,
     color-mix(in srgb, var(--bf-line) 45%, transparent) 5px 6px
   );
+  /* Chassis neon: brand light bleeding through the edges, scaled by the
+     node's real network throughput (--rack-glow 0→1 from agent samples).
+     Slow transition — telemetry arrives every few seconds; the glow should
+     warm up and cool down, not step. */
+  border-color: color-mix(
+    in srgb,
+    var(--bf-brand) calc(18% + var(--rack-glow, 0) * 45%),
+    var(--bf-line)
+  );
+  box-shadow:
+    0 0 calc(8px + var(--rack-glow, 0) * 16px) -6px
+      color-mix(in srgb, var(--bf-brand) calc(25% + var(--rack-glow, 0) * 55%), transparent),
+    inset 0 0 18px -12px
+      color-mix(in srgb, var(--bf-brand) calc(var(--rack-glow, 0) * 60%), transparent);
+  transition:
+    border-color 1.2s,
+    box-shadow 1.2s,
+    transform var(--bf-dur-150);
+}
+/* Hover keeps the neon and adds the usual lift. */
+.container-card.node-ui:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--bf-brand) calc(30% + var(--rack-glow, 0) * 45%),
+    var(--bf-line)
+  );
+  box-shadow:
+    0 0 calc(10px + var(--rack-glow, 0) * 18px) -6px
+      color-mix(in srgb, var(--bf-brand) calc(35% + var(--rack-glow, 0) * 55%), transparent),
+    var(--bf-shadow-lift);
+}
+/* Powered-off chassis: no neon. */
+.container-card.node-ui.is-down,
+.container-card.node-ui.is-down:hover {
+  border-color: var(--bf-line);
+  box-shadow: none;
 }
 .container-card.node-ui .foot {
   display: none;
@@ -352,34 +432,39 @@ async function save(): Promise<void> {
   align-items: center;
   gap: 0.32rem;
   min-height: 1rem;
+  width: fit-content;
 }
+/* All periods scale with --rack-rate (CPU-driven: idle ×1.6 → pegged ×0.35)
+   and every card starts at its own --rack-desync phase, so two machines
+   never blink in unison unless their load really matches. */
 .rack i {
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: var(--bf-status-up);
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-status-up) 70%, transparent);
-  animation: bf-led-data 2.1s steps(1, end) infinite;
+  animation: bf-led-data calc(2.1s * var(--rack-rate, 1)) steps(1, end) infinite;
+  animation-delay: calc(var(--rack-desync, 0) * -1ms);
 }
-/* Staggered periods so the panel never repeats visibly in sync. */
 .rack i:nth-child(2) {
-  animation-duration: 1.4s;
-  animation-delay: 0.35s;
+  animation-duration: calc(1.4s * var(--rack-rate, 1));
+  animation-delay: calc(var(--rack-desync, 0) * -1ms - 0.35s);
 }
 .rack i:nth-child(3) {
-  animation-duration: 2.7s;
-  animation-delay: 0.9s;
+  animation-duration: calc(2.7s * var(--rack-rate, 1));
+  animation-delay: calc(var(--rack-desync, 0) * -1ms - 0.9s);
 }
 .rack i:nth-child(4) {
   background: var(--bf-brand);
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-brand) 70%, transparent);
   animation: bf-led-breathe 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--rack-desync, 0) * -1ms);
 }
 .rack i:nth-child(5) {
   background: var(--bf-status-warn);
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--bf-status-warn) 70%, transparent);
-  animation-duration: 3.7s;
-  animation-delay: 1.6s;
+  animation-duration: calc(3.7s * var(--rack-rate, 1));
+  animation-delay: calc(var(--rack-desync, 0) * -1ms - 1.6s);
 }
 /* Hard on/off flicker — disk-activity language, not a smooth pulse. */
 @keyframes bf-led-data {
