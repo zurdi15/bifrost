@@ -201,25 +201,9 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   <section>
     <header class="section-head">
       <h2 class="title">{{ t('tailnet.title') }}</h2>
-      <span class="head-chips">
-        <BfChip v-if="state?.source === 'fixture' && !fleetMode" tone="warn">
-          {{ t('tailnet.demo') }}
-        </BfChip>
-        <BfChip
-          v-if="fleetForced"
-          tone="unknown"
-          class="bf-tip-bottom"
-          :data-bf-tip="t('tailnet.fleetTip')"
-        >
-          {{ t('tailnet.fleetChip') }}
-        </BfChip>
-        <BfChip v-else-if="!fleetMode && state?.configured && state.tailnet" tone="brand" mono>
-          {{ state.tailnet }}
-        </BfChip>
-      </span>
     </header>
 
-    <!-- Both nets on tap: the tailnet and bifrost's own agent web. -->
+    <!-- Both nets on tap: bifrost's own web on the left, the tailnet right. -->
     <nav
       v-if="showTabs"
       ref="tabsEl"
@@ -227,17 +211,6 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
       role="tablist"
       :style="{ '--ink-x': ink.x, '--ink-w': ink.w }"
     >
-      <button
-        ref="tailnetTab"
-        class="tab"
-        :class="{ active: tab === 'tailnet' }"
-        role="tab"
-        :aria-selected="tab === 'tailnet'"
-        @click="tab = 'tailnet'"
-      >
-        {{ t('tailnet.tabTailnet') }}
-        <span class="tab-count bf-metric">{{ state?.devices.length ?? 0 }}</span>
-      </button>
       <button
         ref="fleetTab"
         class="tab"
@@ -249,12 +222,37 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
         {{ t('tailnet.tabFleet') }}
         <span class="tab-count bf-metric">{{ fleetDevices.length }}</span>
       </button>
+      <button
+        ref="tailnetTab"
+        class="tab"
+        :class="{ active: tab === 'tailnet' }"
+        role="tab"
+        :aria-selected="tab === 'tailnet'"
+        @click="tab = 'tailnet'"
+      >
+        {{ t('tailnet.tabTailnet') }}
+        <span class="tab-count bf-metric">{{ state?.devices.length ?? 0 }}</span>
+      </button>
       <span class="tab-ink" aria-hidden="true" />
     </nav>
 
     <template v-if="loaded && state">
-      <!-- Instrument console: counters, scan filter, re-sync. -->
+      <!-- Instrument console: net identity, counters, scan filter, re-sync. -->
       <div class="console">
+        <BfChip v-if="!fleetMode && state.tailnet" tone="brand" mono>
+          {{ state.tailnet }}
+        </BfChip>
+        <BfChip v-if="!fleetMode && state.source === 'fixture'" tone="warn">
+          {{ t('tailnet.demo') }}
+        </BfChip>
+        <BfChip
+          v-if="fleetForced"
+          tone="unknown"
+          class="bf-tip-bottom"
+          :data-bf-tip="t('tailnet.fleetTip')"
+        >
+          {{ t('tailnet.fleetChip') }}
+        </BfChip>
         <span class="readout">
           {{ t('tailnet.hudNodes') }}
           <b class="bf-metric">{{ devices.length }}</b>
@@ -356,13 +354,6 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   letter-spacing: 0.14em;
   color: var(--bf-ink-secondary);
 }
-.head-chips {
-  display: flex;
-  gap: 0.4rem;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
 .tabs {
   position: relative;
   display: flex;

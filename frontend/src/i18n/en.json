@@ -90,13 +90,13 @@
     "storage": "Storage",
     "jobs": "Jobs",
     "gateway": "Gateway",
-    "tailnet": "Tailnet",
+    "tailnet": "Network",
     "settings": "Alerts",
     "edit": "edit layout",
     "language": "language"
   },
   "tailnet": {
-    "title": "Tailnet",
+    "title": "Network",
     "tabTailnet": "Tailnet",
     "tabFleet": "Bifrost net",
     "fleetChip": "bifrost fleet",

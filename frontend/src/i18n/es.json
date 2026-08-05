@@ -90,13 +90,13 @@
     "storage": "Almacenamiento",
     "jobs": "Jobs",
     "gateway": "Gateway",
-    "tailnet": "Tailnet",
+    "tailnet": "Red",
     "settings": "Alertas",
     "edit": "editar layout",
     "language": "idioma"
   },
   "tailnet": {
-    "title": "Tailnet",
+    "title": "Red",
     "tabTailnet": "Tailnet",
     "tabFleet": "Red bifrost",
     "fleetChip": "red bifrost",
