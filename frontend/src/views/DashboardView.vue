@@ -36,18 +36,21 @@ watch(tab, (next) => {
 // 1px bar): left/width are not compositor-friendly, so we measure the tab.
 const servicesTab = ref<HTMLButtonElement | null>(null);
 const bookmarksTab = ref<HTMLButtonElement | null>(null);
+const tabsEl = ref<HTMLElement | null>(null);
 const ink = ref({ x: 0, w: 0 });
 function placeInk(): void {
   const el = (tab.value === 'bookmarks' ? bookmarksTab : servicesTab).value;
   if (el) ink.value = { x: el.offsetLeft, w: el.offsetWidth };
 }
 watch(tab, placeInk, { flush: 'post' });
-// Tabs change width outside our control (font load, the running count).
+// Tabs change width outside our control (font load, the running count) and
+// slide sideways while the machines rail animates open/shut (the centered
+// row re-centers as .main resizes) — observing the nav itself catches both.
 let inkObserver: ResizeObserver | null = null;
 onMounted(() => {
   placeInk();
   inkObserver = new ResizeObserver(placeInk);
-  for (const el of [servicesTab.value, bookmarksTab.value]) {
+  for (const el of [servicesTab.value, bookmarksTab.value, tabsEl.value]) {
     if (el) inkObserver.observe(el);
   }
   document.addEventListener('pointerdown', onDocPointerDown);
@@ -111,18 +114,23 @@ function onDocPointerDown(event: PointerEvent): void {
 }
 // No machines → give services the full width.
 const showAside = computed(() => nodeCards.value.length > 0);
+// The rail belongs to the services tab; bookmarks gets the full width. The
+// aside stays mounted so both directions can animate (column glide + slide).
+const railHidden = computed(() => tab.value !== 'services');
 </script>
 
 <template>
   <!-- The dashboard is what you *use*: services, bookmarks, widgets.
        Infrastructure health lives in its own Nodes section. -->
-  <div class="dash" :class="{ 'with-aside': showAside }">
-    <div class="main">
-      <nav
-        class="tabs"
-        role="tablist"
-        :style="{ '--ink-x': ink.x, '--ink-w': ink.w }"
-      >
+  <div class="dash" :class="{ 'with-aside': showAside, 'rail-off': railHidden }">
+    <!-- Full-bleed row: the tab rule runs edge to edge, across the rail too,
+         so it never shifts while the rail column animates open or shut. -->
+    <nav
+      ref="tabsEl"
+      class="tabs"
+      role="tablist"
+      :style="{ '--ink-x': ink.x, '--ink-w': ink.w }"
+    >
         <button
           ref="servicesTab"
           class="tab"
@@ -147,8 +155,9 @@ const showAside = computed(() => nodeCards.value.length > 0);
           {{ t('bookmarks.title') }}
         </button>
         <span class="tab-ink" aria-hidden="true" />
-      </nav>
+    </nav>
 
+    <div class="main">
       <div ref="toolbarEl" class="toolbar">
         <template v-if="tab === 'services' && hasServices">
           <button
@@ -242,15 +251,17 @@ const showAside = computed(() => nodeCards.value.length > 0);
 
     <!-- Machines get their own rail where the ambient widgets used to sit:
          one card wide, stacked, out of the service grids entirely. -->
-    <aside v-if="showAside" class="aside rail" :aria-label="t('nav.nodes')">
-      <h2 class="rail-title">{{ t('nav.nodes') }}</h2>
-      <div class="rail-stack bf-stagger">
-        <ContainerCard
-          v-for="(machine, i) in nodeCards"
-          :key="`${machine.node_uuid}:${machine.name}`"
-          :container="machine"
-          :style="{ '--i': i }"
-        />
+    <aside v-if="showAside" class="aside rail" :aria-label="t('nav.nodes')" :inert="railHidden">
+      <div class="rail-body">
+        <h2 class="rail-title">{{ t('nav.nodes') }}</h2>
+        <div class="rail-stack bf-stagger">
+          <ContainerCard
+            v-for="(machine, i) in nodeCards"
+            :key="`${machine.node_uuid}:${machine.name}`"
+            :container="machine"
+            :style="{ '--i': i }"
+          />
+        </div>
       </div>
     </aside>
   </div>
@@ -258,6 +269,7 @@ const showAside = computed(() => nodeCards.value.length > 0);
 
 <style scoped>
 .tabs {
+  grid-column: 1 / -1;
   position: relative;
   display: flex;
   justify-content: center;
@@ -443,17 +455,58 @@ const showAside = computed(() => nodeCards.value.length > 0);
 @media (min-width: 1100px) {
   .dash.with-aside {
     grid-template-columns: minmax(0, 1fr) 300px;
+    /* Bookmarks reclaims the rail's width: the column itself glides shut
+       (a deliberate exception to entrance-only motion — the reflow IS the
+       feature here, and an instant 300px jump reads as a glitch). */
+    transition:
+      grid-template-columns var(--bf-dur-500) var(--bf-ease-spring),
+      column-gap var(--bf-dur-500) var(--bf-ease-spring);
+  }
+  .dash.with-aside.rail-off {
+    grid-template-columns: minmax(0, 1fr) 0px;
+    column-gap: 0;
   }
   .dash > .aside {
     position: sticky;
     top: 0.5rem;
     margin-top: 0;
+    /* Clips the rigid rail body while its column narrows. */
+    overflow: hidden;
+  }
+  /* Fixed width so cards slide away as a block instead of re-wrapping
+     at every frame of the column squeeze. */
+  .rail-body {
+    width: 300px;
   }
 }
-/* The rail title lines up with the toolbar row, so the first machine card
-   starts level with the first service group. */
+/* Choreography: on show the column opens first, then the machines glide in
+   (3 stagger steps late); on hide they fade out immediately while the
+   column is still closing. */
+.rail-body {
+  transition:
+    transform var(--bf-dur-500) var(--bf-ease-spring) calc(3 * var(--bf-stagger-step)),
+    opacity var(--bf-dur-500) var(--bf-ease-spring) calc(3 * var(--bf-stagger-step));
+}
+.rail-off .rail-body {
+  transform: translateX(26px);
+  opacity: 0;
+  transition:
+    transform var(--bf-dur-300) var(--bf-ease-spring),
+    opacity var(--bf-dur-150) linear;
+}
+@media (max-width: 1099px) {
+  /* Stacked layout has no column to animate — the rail simply yields. */
+  .dash.rail-off > .aside {
+    display: none;
+  }
+}
+/* NODES sits on the toolbar's row: same top margin, same 1.65rem line as the
+   group/filter pills, vertically centered like them. */
 .rail-title {
-  margin: 2.7rem 0 0.6rem;
+  display: flex;
+  align-items: center;
+  height: 1.65rem;
+  margin: 1rem 0 0;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -464,10 +517,17 @@ const showAside = computed(() => nodeCards.value.length > 0);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* First machine card level with the first service card: toolbar's bottom
+     margin (1.1rem — the group heading's 1rem top margin collapses into it)
+     + the heading itself (0.72rem × 1.5 line + 0.6rem bottom margin). */
+  margin-top: calc(1.1rem + 0.72rem * 1.5 + 0.6rem);
 }
 @media (max-width: 1099px) {
   .rail-title {
     margin-top: 1.4rem;
+  }
+  .rail-stack {
+    margin-top: 0.6rem;
   }
 }
 </style>
