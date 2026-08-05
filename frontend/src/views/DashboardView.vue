@@ -492,12 +492,9 @@ const railHidden = computed(() => tab.value !== 'services');
 @media (min-width: 1100px) {
   .dash.with-aside {
     grid-template-columns: minmax(0, 1fr) 300px;
-    /* Bookmarks reclaims the rail's width: the column itself glides shut
-       (a deliberate exception to entrance-only motion — the reflow IS the
-       feature here, and an instant 300px jump reads as a glitch). */
-    transition:
-      grid-template-columns var(--bf-dur-500) var(--bf-ease-spring),
-      column-gap var(--bf-dur-500) var(--bf-ease-spring);
+    /* No width animation: a gliding column re-wrapped the service cards on
+       every frame of the glide. The column snaps (one reflow, masked by the
+       tab panel's own entrance) and the rail body slides in after it. */
   }
   .dash.with-aside.rail-off {
     grid-template-columns: minmax(0, 1fr) 0px;
@@ -516,20 +513,17 @@ const railHidden = computed(() => tab.value !== 'services');
     width: 300px;
   }
 }
-/* Choreography: on show the column opens first, then the machines glide in
-   (3 stagger steps late); on hide they fade out immediately while the
-   column is still closing. */
+/* The column snaps into place; the machines then glide in (2 stagger steps
+   late). Hiding is instant, per the entrance-only motion rule. */
 .rail-body {
   transition:
-    transform var(--bf-dur-500) var(--bf-ease-spring) calc(3 * var(--bf-stagger-step)),
-    opacity var(--bf-dur-500) var(--bf-ease-spring) calc(3 * var(--bf-stagger-step));
+    transform var(--bf-dur-500) var(--bf-ease-spring) calc(2 * var(--bf-stagger-step)),
+    opacity var(--bf-dur-500) var(--bf-ease-spring) calc(2 * var(--bf-stagger-step));
 }
 .rail-off .rail-body {
   transform: translateX(26px);
   opacity: 0;
-  transition:
-    transform var(--bf-dur-300) var(--bf-ease-spring),
-    opacity var(--bf-dur-150) linear;
+  transition: none;
 }
 @media (max-width: 1099px) {
   /* Stacked layout has no column to animate — the rail simply yields. */

@@ -97,9 +97,9 @@
   },
   "tailnet": {
     "title": "Tailnet",
-    "notConfigured": "sin enlace",
-    "notConfiguredBody": "Apunta el hub a tu tailnet: define {key} con un access token de la consola de Tailscale y la constelación aparecerá aquí — cada nodo, y cada conexión que tus ACL realmente permiten.",
-    "empty": "El tailnet está vacío — ningún dispositivo reportado.",
+    "fleetChip": "red bifrost",
+    "fleetTip": "Sin tailnet conectado — esto es la propia red de bifrost: agentes marcando al hub, el hub sondeando endpoints. Define BIFROST_TAILSCALE_API_KEY en el hub para mapear tu tailnet con reachability de ACL.",
+    "empty": "Nada que mapear todavía.",
     "demo": "datos demo",
     "stale": "barrido caducado",
     "partial": "mapa parcial",

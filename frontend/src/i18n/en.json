@@ -97,9 +97,9 @@
   },
   "tailnet": {
     "title": "Tailnet",
-    "notConfigured": "no uplink",
-    "notConfiguredBody": "Point the hub at your tailnet: set {key} to an access token from the Tailscale admin console and the constellation appears here — every node, and every connection your ACLs actually allow.",
-    "empty": "The tailnet is empty — no devices reported.",
+    "fleetChip": "bifrost fleet",
+    "fleetTip": "No tailnet connected — this is the bifrost network itself: agents dialing the hub, the hub probing endpoints. Set BIFROST_TAILSCALE_API_KEY on the hub to chart your tailnet with ACL reachability instead.",
+    "empty": "Nothing to chart yet.",
     "demo": "demo data",
     "stale": "stale sweep",
     "partial": "partial map",

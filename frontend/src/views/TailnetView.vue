@@ -3,7 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 import { mdiRefresh } from '@mdi/js';
 
-import { fetchTailnet, refreshTailnet, type TailnetState } from '@/api/tailnet';
+import {
+  fetchTailnet,
+  refreshTailnet,
+  type TailnetDevice,
+  type TailnetEdge,
+  type TailnetState,
+} from '@/api/tailnet';
 import ExpandingSearch from '@/components/ExpandingSearch.vue';
 import TailnetDossier from '@/components/TailnetDossier.vue';
 import TailnetMap from '@/components/TailnetMap.vue';
@@ -42,8 +48,74 @@ async function resync(): Promise<void> {
   }
 }
 
-const devices = computed(() => state.value?.devices ?? []);
-const edges = computed(() => state.value?.edges ?? []);
+// ── fleet fallback ──
+// No tailnet (or an empty one) still deserves a constellation: the hub and
+// every bifrost node it knows, wired the way they actually connect — agents
+// dial the hub's WebSocket, the hub dials endpoint checks. The section is
+// useful from the first agent, and a hint chip sells the tailnet upgrade.
+const HUB_ID = 'bifrost-hub';
+const fleetMode = computed(
+  () =>
+    loaded.value &&
+    state.value !== null &&
+    (!state.value.configured || state.value.devices.length === 0),
+);
+
+function fleetDevice(partial: Partial<TailnetDevice> & { id: string; name: string }): TailnetDevice {
+  return {
+    fqdn: '',
+    hostname: partial.name,
+    ips: [],
+    os: '',
+    user: '',
+    tags: [],
+    online: true,
+    last_seen: 0,
+    expires: 0,
+    key_expiry_disabled: true,
+    client_version: '',
+    update_available: false,
+    authorized: true,
+    external: false,
+    exit_node: false,
+    routes: [],
+    blocks_incoming: false,
+    ...partial,
+  } as TailnetDevice;
+}
+
+const fleetDevices = computed<TailnetDevice[]>(() => [
+  fleetDevice({
+    id: HUB_ID,
+    name: 'bifrost',
+    tags: ['hub'],
+    online: live.connection === 'live',
+  }),
+  ...live.nodeList.map((node) =>
+    fleetDevice({
+      id: node.uuid,
+      name: node.name,
+      hostname: node.name,
+      os: node.os ?? '',
+      tags: [node.kind],
+      online: node.status === 'online',
+      last_seen: node.last_seen ?? 0,
+      client_version: node.agent_version ?? '',
+    }),
+  ),
+]);
+const fleetEdges = computed<TailnetEdge[]>(() =>
+  live.nodeList.map((node) =>
+    node.kind === 'endpoint'
+      ? { src: HUB_ID, dst: node.uuid, ports: ['checks'] }
+      : { src: node.uuid, dst: HUB_ID, ports: ['ws'] },
+  ),
+);
+
+const devices = computed(() =>
+  fleetMode.value ? fleetDevices.value : (state.value?.devices ?? []),
+);
+const edges = computed(() => (fleetMode.value ? fleetEdges.value : (state.value?.edges ?? [])));
 const onlineCount = computed(() => devices.value.filter((d) => d.online).length);
 const selectedDevice = computed(
   () => devices.value.find((d) => d.id === selected.value) ?? null,
@@ -89,25 +161,24 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
     <header class="section-head">
       <h2 class="title">{{ t('tailnet.title') }}</h2>
       <span class="head-chips">
-        <BfChip v-if="state?.source === 'fixture'" tone="warn">{{ t('tailnet.demo') }}</BfChip>
-        <BfChip v-if="state?.configured && state.tailnet" tone="brand" mono>
+        <BfChip v-if="state?.source === 'fixture' && !fleetMode" tone="warn">
+          {{ t('tailnet.demo') }}
+        </BfChip>
+        <BfChip
+          v-if="fleetMode"
+          tone="unknown"
+          class="bf-tip-bottom"
+          :data-bf-tip="t('tailnet.fleetTip')"
+        >
+          {{ t('tailnet.fleetChip') }}
+        </BfChip>
+        <BfChip v-else-if="state?.configured && state.tailnet" tone="brand" mono>
           {{ state.tailnet }}
         </BfChip>
       </span>
     </header>
 
-    <!-- No credentials: the section idles, antenna out. -->
-    <div v-if="loaded && state && !state.configured" class="no-uplink">
-      <span class="dish" aria-hidden="true" />
-      <p class="no-uplink-title">{{ t('tailnet.notConfigured') }}</p>
-      <i18n-t keypath="tailnet.notConfiguredBody" tag="p" class="no-uplink-body">
-        <template #key>
-          <code class="bf-metric">BIFROST_TAILSCALE_API_KEY</code>
-        </template>
-      </i18n-t>
-    </div>
-
-    <template v-if="state?.configured">
+    <template v-if="loaded && state">
       <!-- Instrument console: counters, scan filter, re-sync. -->
       <div class="console">
         <span class="readout">
@@ -122,30 +193,32 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
           {{ t('tailnet.hudLinks') }}
           <b class="bf-metric">{{ edges.length }}</b>
         </span>
-        <span class="readout">
-          {{ t('tailnet.hudRules') }}
-          <b class="bf-metric">{{ state.policy?.rules ?? 0 }}</b>
-        </span>
-        <span class="readout">
-          {{ t('tailnet.hudSync') }}
-          <b class="bf-metric">{{ syncClock }}</b>
-        </span>
-        <BfChip
-          v-if="state.error"
-          tone="down"
-          class="bf-tip-bottom"
-          :data-bf-tip="state.error"
-        >
-          {{ t('tailnet.stale') }}
-        </BfChip>
-        <BfChip
-          v-else-if="unresolved.length"
-          tone="warn"
-          class="bf-tip-bottom"
-          :data-bf-tip="t('tailnet.partialTip', { list: unresolved.join(', ') })"
-        >
-          {{ t('tailnet.partial') }}
-        </BfChip>
+        <template v-if="!fleetMode">
+          <span class="readout">
+            {{ t('tailnet.hudRules') }}
+            <b class="bf-metric">{{ state.policy?.rules ?? 0 }}</b>
+          </span>
+          <span class="readout">
+            {{ t('tailnet.hudSync') }}
+            <b class="bf-metric">{{ syncClock }}</b>
+          </span>
+          <BfChip
+            v-if="state.error"
+            tone="down"
+            class="bf-tip-bottom"
+            :data-bf-tip="state.error"
+          >
+            {{ t('tailnet.stale') }}
+          </BfChip>
+          <BfChip
+            v-else-if="unresolved.length"
+            tone="warn"
+            class="bf-tip-bottom"
+            :data-bf-tip="t('tailnet.partialTip', { list: unresolved.join(', ') })"
+          >
+            {{ t('tailnet.partial') }}
+          </BfChip>
+        </template>
         <span class="spacer" />
         <ExpandingSearch
           v-model="query"
@@ -153,6 +226,7 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
           :label="t('tailnet.search')"
         />
         <button
+          v-if="!fleetMode"
           class="resync"
           type="button"
           :disabled="refreshing"
@@ -173,7 +247,7 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
           v-if="bodyTop > 0 && fontsReady"
           :devices="devices"
           :edges="edges"
-          :internet="state.internet"
+          :internet="!fleetMode && state.internet"
           :selected="selected"
           :query="query"
           @select="selected = $event"
@@ -327,46 +401,4 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   }
 }
 
-.no-uplink {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 3.2rem 1rem 3.6rem;
-  border: 1px dashed var(--bf-line-strong);
-  border-radius: var(--bf-radius-card);
-  text-align: center;
-}
-.dish {
-  width: 52px;
-  height: 52px;
-  border: 1px dashed var(--bf-ink-faint);
-  border-radius: var(--bf-radius-pill);
-  border-top-color: var(--bf-aurora-2);
-  animation: bf-rotate 6s linear infinite;
-}
-.no-uplink-title {
-  margin: 0;
-  font-family: var(--bf-font-mono);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--bf-ink-secondary);
-}
-.no-uplink-body {
-  margin: 0;
-  max-width: 34rem;
-  font-size: 0.8rem;
-  line-height: 1.6;
-  color: var(--bf-ink-muted);
-}
-.no-uplink-body code {
-  padding: 0.1rem 0.35rem;
-  border: 1px solid var(--bf-line);
-  border-radius: var(--bf-radius-ctl);
-  background: var(--bf-surface-sunken);
-  font-size: 0.7rem;
-  color: var(--bf-ink-secondary);
-}
 </style>
