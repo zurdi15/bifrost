@@ -28,6 +28,14 @@ export function formatUptime(bootTs: number | null | undefined, now = Date.now()
   return `${mins}m`;
 }
 
+/** Compact "2d 3h" / "3h 20m" / "5m" span for a positive amount of seconds.
+ * Language-neutral like formatUptime; callers wrap it in "hace {t}" / "{t} ago". */
+export function formatDelta(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  if (seconds < 60) return '<1m';
+  return formatUptime(1, seconds + 1);
+}
+
 export function formatClock(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString([], {
     hour: '2-digit',

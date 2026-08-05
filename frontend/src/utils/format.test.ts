@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatUptime } from './format';
+import { formatBytes, formatDelta, formatUptime } from './format';
 
 describe('formatBytes', () => {
   it('formats across units', () => {
@@ -33,5 +33,18 @@ describe('formatUptime', () => {
   it('handles missing or future boot ts', () => {
     expect(formatUptime(null, now)).toBe('—');
     expect(formatUptime(now + 100, now)).toBe('—');
+  });
+});
+
+describe('formatDelta', () => {
+  it('renders compact spans', () => {
+    expect(formatDelta(30)).toBe('<1m');
+    expect(formatDelta(5 * 60)).toBe('5m');
+    expect(formatDelta(2 * 86400 + 3 * 3600)).toBe('2d 3h');
+  });
+
+  it('handles invalid input', () => {
+    expect(formatDelta(-5)).toBe('—');
+    expect(formatDelta(NaN)).toBe('—');
   });
 });

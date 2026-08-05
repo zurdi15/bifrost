@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     # Empty (the default) disables all URL derivation.
     service_domain: str = ""
 
+    # Tailscale admin-API access token; setting it switches the Tailnet
+    # section on. "-" (the API convention) targets the token's own tailnet.
+    tailscale_api_key: str = ""
+    tailscale_tailnet: str = "-"
+    # Canned {"devices": [...], "policy": {...}} document served instead of
+    # the admin API — dev stack, demos and tests get a tailnet for free.
+    tailnet_fixture: Path | None = None
+
     # Metric history retention per resolution.
     retention_raw_h: int = 24
     retention_1m_d: int = 14

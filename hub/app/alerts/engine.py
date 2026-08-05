@@ -74,6 +74,12 @@ def render_message(event: Event) -> tuple[str, str]:
             f"Update available: {data.get('image')}",
             f"latest {data.get('latest')}",
         )
+    if event.topic.startswith("tailnet.device."):
+        online = event.topic.endswith(".online")
+        return (
+            f"Tailnet peer {data.get('subject', '?')} is {'ONLINE' if online else 'OFFLINE'}",
+            "back on the tailnet" if online else "stopped responding to the coordination server",
+        )
     return (event.topic, json.dumps(data)[:300])
 
 

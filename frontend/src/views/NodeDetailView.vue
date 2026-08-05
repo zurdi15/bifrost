@@ -476,7 +476,17 @@ onMounted(async () => {
   display: block;
   height: 100%;
   transform-origin: left;
-  background: var(--bf-aurora);
+  /* The composed --bf-aurora token is lib/layouts-only (guard:tokens); this
+     rebuilds the same 6-stop ribbon from the unrestricted stops. */
+  background: linear-gradient(
+    90deg,
+    var(--bf-aurora-1),
+    var(--bf-aurora-2),
+    var(--bf-aurora-3),
+    var(--bf-aurora-4),
+    var(--bf-aurora-5),
+    var(--bf-aurora-1)
+  );
   background-size: 300% 100%;
   animation: bf-aurora-drift 6s linear infinite;
   transition: transform var(--bf-dur-150) linear;

@@ -36,6 +36,10 @@ All planned phases are built:
 - Nodes page split from the dashboard (services/bookmarks/widgets tabs + ambient rail),
   mobile glass dock, styled tooltips, node URLs.
 - Home Assistant widget (entities via long-lived token, hub-proxied and cached).
+- Tailnet section: hub-side Tailscale admin-API poller + best-effort ACL
+  evaluator, rendered as an interactive constellation map — per-node
+  reachability with ports, exit-node internet gate, device dossier. Optional
+  (`BIFROST_TAILSCALE_API_KEY`); a fixture document drives the seeded demo.
 
 ## Future ideas
 

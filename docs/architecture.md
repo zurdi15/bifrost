@@ -51,6 +51,18 @@ runs one watcher per cluster (httpx streaming watch + full relist every 5min) ov
 read-only RBAC. Manually-added clusters (kubeconfig mount or url+token+ca) are equally
 supported for clusters with no agent.
 
+### Tailnet (optional)
+
+With a Tailscale admin-API token configured (`BIFROST_TAILSCALE_API_KEY`), a
+hub-side poller sweeps devices + the ACL policy every 60s and evaluates who
+can reach whom (ports included) best-effort: groups, tags, hosts, CIDRs,
+`autogroup:member/tagged/self`, and `autogroup:internet` through exit nodes.
+Selectors it cannot ground to devices are surfaced as `unresolved` — the UI
+flags the map as partial instead of lying. The graph lives in memory only
+(re-derived each sweep, stale-served on API errors); device online/offline
+transitions ride the EventBus like every other state change. A canned
+document (`BIFROST_TAILNET_FIXTURE`) replaces the API for demos and tests.
+
 ### Agentless nodes (phase 6)
 
 `kind='endpoint'` nodes with ping/http/tcp checks run from the hub. This is how a Home

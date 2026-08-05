@@ -19,6 +19,8 @@ export const useLiveStore = defineStore('live', () => {
   const k8sVersion = ref(0);
   // Bumped when bookmarks.yml resyncs on the hub.
   const bookmarksVersion = ref(0);
+  // Bumped on any tailnet.* event so the Tailnet view refetches its graph.
+  const tailnetVersion = ref(0);
   const socket = shallowRef<UiSocket | null>(null);
 
   const metrics = useMetricsStore();
@@ -95,6 +97,8 @@ export const useLiveStore = defineStore('live', () => {
       if (event.topic === 'k8s.synced') void snapshot();
     } else if (event.topic === 'bookmarks.updated') {
       bookmarksVersion.value += 1;
+    } else if (event.topic.startsWith('tailnet.')) {
+      tailnetVersion.value += 1;
     } else if (event.topic === 'fs.updated') {
       fs.set(event.data.uuid as string, event.data.mounts as FsMount[]);
     } else if (event.topic === 'metrics.live') {
@@ -149,6 +153,7 @@ export const useLiveStore = defineStore('live', () => {
     lastSeq,
     k8sVersion,
     bookmarksVersion,
+    tailnetVersion,
     connect,
     disconnect,
     applyEvent,

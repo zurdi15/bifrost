@@ -140,6 +140,21 @@
   }
 }
 
+/* Slow continuous rotation: tailnet radar sweep, selected-node dashed ring. */
+@keyframes bf-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ACL flow along a highlighted tailnet edge (SVG stroke only; the offset
+   matches two periods of the 7 9 dash so the loop is seamless). */
+@keyframes bf-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
 /* ── ambient ── */
 
 /* The aurora hairline drifts slowly; it is also the hub-connection indicator

@@ -19,6 +19,7 @@ from app.api import health, nodes
 from app.api import icons as icons_api
 from app.api import k8s as k8s_api
 from app.api import metrics as metrics_api
+from app.api import tailnet as tailnet_api
 from app.api import widgets as widgets_api
 from app.bookmarks_file import bookmarks_file_watcher
 from app.bus import EventBus
@@ -29,6 +30,7 @@ from app.db import init_engine
 from app.events import events_recorder
 from app.k8s.watcher import K8sManager
 from app.metrics.store import MetricsStore
+from app.tailnet.poller import tailnet_poll
 from app.updates.watcher import update_watch
 from app.ws import agent_ws, ui_ws
 from app.ws.registry import AgentRegistry
@@ -77,6 +79,7 @@ def create_app() -> FastAPI:
             asyncio.create_task(alerts_engine(app.state.bus), name="alerts-engine"),
             asyncio.create_task(service_checks(app.state.bus), name="service-checks"),
             asyncio.create_task(update_watch(app.state.bus), name="update-watch"),
+            asyncio.create_task(tailnet_poll(app.state.bus), name="tailnet-poll"),
             asyncio.create_task(
                 bookmarks_file_watcher(app.state.bus), name="bookmarks-file"
             ),
@@ -107,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(bookmarks_api.router, prefix=api_prefix)
     app.include_router(alerts_api.router, prefix=api_prefix)
     app.include_router(metrics_api.router, prefix=api_prefix)
+    app.include_router(tailnet_api.router, prefix=api_prefix)
     app.include_router(events_api.router, prefix=api_prefix)
     app.include_router(agent_ws.router)
     app.include_router(ui_ws.router)

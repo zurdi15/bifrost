@@ -5,7 +5,8 @@
 #
 #   ./dev.sh          bare stack
 #   ./dev.sh --seed   also fill it with lifelike fixtures: fake agents (live
-#                     nodes, services, disks), bookmarks, widgets, k8s jobs
+#                     nodes, services, disks), bookmarks, widgets, k8s jobs,
+#                     and a canned tailnet (devices + ACL graph)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 SEED="${1:-}"
@@ -19,6 +20,10 @@ trap 'trap - INT TERM EXIT; kill 0' INT TERM EXIT
 
 (
   cd hub
+  if [ "$SEED" = "--seed" ]; then
+    # The Tailnet section reads this canned document instead of the admin API.
+    export BIFROST_TAILNET_FIXTURE="$(pwd)/scripts/tailnet_fixture.json"
+  fi
   BIFROST_DATA_DIR="$(pwd)/../data" exec uv run uvicorn app.asgi:app \
     --reload --port "${BIFROST_DEV_HUB_PORT:-8000}"
 ) &

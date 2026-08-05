@@ -35,6 +35,11 @@ const router = createRouter({
       component: () => import("@/views/GatewayView.vue"),
     },
     {
+      path: "/tailnet",
+      name: "tailnet",
+      component: () => import("@/views/TailnetView.vue"),
+    },
+    {
       path: "/settings",
       name: "settings",
       component: () => import("@/views/SettingsView.vue"),

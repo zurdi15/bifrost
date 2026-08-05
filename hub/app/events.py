@@ -19,6 +19,8 @@ PERSISTED_TOPICS = {
     "disk.updated": "info",
     "endpoint.status": "info",
     "k8s.cluster.discovered": "info",
+    "tailnet.device.online": "info",
+    "tailnet.device.offline": "info",
 }
 
 
@@ -34,6 +36,8 @@ def _severity(topic: str, data: dict) -> str:
     if topic == "disk.updated" and any(
         d.get("smart_status") == "failed" for d in data.get("disks", [])
     ):
+        return "warning"
+    if topic == "tailnet.device.offline":
         return "warning"
     return PERSISTED_TOPICS.get(topic, "info")
 

@@ -13,6 +13,10 @@ services:
       # gateway domain: auto-derive https://<container>.<domain> for services
       # with an unambiguous port (see env.template)
       # BIFROST_SERVICE_DOMAIN: example.net
+      # Tailscale admin-API access token → Tailnet section (device map + ACL
+      # reachability; see env.template)
+      # BIFROST_TAILSCALE_API_KEY: tskey-api-…
+      # BIFROST_TAILSCALE_TAILNET: "-"
     volumes:
       - ./data:/data
       # Declarative bookmarks: with /data bind-mounted like above, just drop

@@ -1,0 +1,175 @@
+{
+  "tailnet": "asgard.ts.net",
+  "devices": [
+    {
+      "nodeId": "n-heimdall",
+      "name": "heimdall.asgard.ts.net",
+      "hostname": "heimdall",
+      "addresses": ["100.71.0.1", "fd7a:115c:a1e0::1"],
+      "os": "linux",
+      "tags": ["tag:server", "tag:gateway"],
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "keyExpiryDisabled": true,
+      "enabledRoutes": ["0.0.0.0/0", "::/0", "192.168.10.0/24"]
+    },
+    {
+      "nodeId": "n-mimir",
+      "name": "mimir.asgard.ts.net",
+      "hostname": "mimir",
+      "addresses": ["100.71.0.20", "fd7a:115c:a1e0::20"],
+      "os": "linux",
+      "tags": ["tag:server"],
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "keyExpiryDisabled": true,
+      "enabledRoutes": []
+    },
+    {
+      "nodeId": "n-yggdrasil",
+      "name": "yggdrasil.asgard.ts.net",
+      "hostname": "yggdrasil",
+      "addresses": ["100.71.0.30"],
+      "os": "linux",
+      "tags": ["tag:server", "tag:k8s"],
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.84.0",
+      "updateAvailable": true,
+      "keyExpiryDisabled": true,
+      "enabledRoutes": []
+    },
+    {
+      "nodeId": "n-vanaheim",
+      "name": "vanaheim.asgard.ts.net",
+      "hostname": "vanaheim",
+      "addresses": ["100.71.0.40"],
+      "os": "linux",
+      "tags": ["tag:media"],
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "keyExpiryDisabled": true,
+      "enabledRoutes": []
+    },
+    {
+      "nodeId": "n-jotun",
+      "name": "jotun.asgard.ts.net",
+      "hostname": "jotun",
+      "addresses": ["100.71.0.50"],
+      "os": "linux",
+      "tags": ["tag:backup"],
+      "user": "odin@valhalla.example",
+      "online": false,
+      "lastSeen": "2026-08-04T22:10:00Z",
+      "clientVersion": "1.86.2",
+      "keyExpiryDisabled": true,
+      "enabledRoutes": []
+    },
+    {
+      "nodeId": "n-gungnir",
+      "name": "gungnir.asgard.ts.net",
+      "hostname": "gungnir",
+      "addresses": ["100.71.0.101"],
+      "os": "macOS",
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "expires": "2027-02-01T00:00:00Z"
+    },
+    {
+      "nodeId": "n-hlidskjalf",
+      "name": "hlidskjalf.asgard.ts.net",
+      "hostname": "hlidskjalf",
+      "addresses": ["100.71.0.102"],
+      "os": "windows",
+      "user": "odin@valhalla.example",
+      "online": false,
+      "lastSeen": "2026-08-01T09:00:00Z",
+      "clientVersion": "1.82.5",
+      "updateAvailable": true,
+      "expires": "2027-02-01T00:00:00Z"
+    },
+    {
+      "nodeId": "n-sleipnir",
+      "name": "sleipnir.asgard.ts.net",
+      "hostname": "sleipnir",
+      "addresses": ["100.71.0.103"],
+      "os": "iOS",
+      "user": "odin@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "expires": "2027-02-01T00:00:00Z",
+      "blocksIncomingConnections": true
+    },
+    {
+      "nodeId": "n-brisingamen",
+      "name": "brisingamen.asgard.ts.net",
+      "hostname": "brisingamen",
+      "addresses": ["100.71.0.110"],
+      "os": "macOS",
+      "user": "frigg@valhalla.example",
+      "online": true,
+      "clientVersion": "1.86.2",
+      "expires": "2026-08-12T00:00:00Z"
+    },
+    {
+      "nodeId": "n-laevateinn",
+      "name": "laevateinn.asgard.ts.net",
+      "hostname": "laevateinn",
+      "addresses": ["100.71.0.120"],
+      "os": "android",
+      "user": "loki@valhalla.example",
+      "online": true,
+      "clientVersion": "1.80.1",
+      "updateAvailable": true,
+      "expires": "2026-08-09T00:00:00Z"
+    },
+    {
+      "nodeId": "n-munin",
+      "name": "munin.ravens.example.ts.net",
+      "hostname": "munin",
+      "addresses": ["100.71.0.200"],
+      "os": "linux",
+      "user": "hugin@ravens.example",
+      "online": true,
+      "external": true,
+      "clientVersion": "1.86.2",
+      "keyExpiryDisabled": true
+    }
+  ],
+  "policy": {
+    "groups": {
+      "group:aesir": ["odin@valhalla.example", "frigg@valhalla.example"],
+      "group:admins": ["odin@valhalla.example"]
+    },
+    "hosts": {
+      "mimir-vault": "100.71.0.20"
+    },
+    "acls": [
+      { "action": "accept", "src": ["group:admins"], "dst": ["*:*"] },
+      {
+        "action": "accept",
+        "src": ["group:aesir"],
+        "dst": ["tag:media:8096", "tag:server:445,5000"]
+      },
+      {
+        "action": "accept",
+        "proto": "tcp",
+        "src": ["tag:k8s"],
+        "dst": ["mimir-vault:8200"]
+      },
+      { "action": "accept", "src": ["tag:server"], "dst": ["tag:backup:9000-9010"] },
+      {
+        "action": "accept",
+        "src": ["autogroup:member"],
+        "dst": ["autogroup:self:*", "autogroup:internet:80,443"]
+      },
+      { "action": "accept", "src": ["loki@valhalla.example"], "dst": ["tag:media:8096"] },
+      { "action": "accept", "src": ["hugin@ravens.example"], "dst": ["tag:media:8096"] }
+    ],
+    "grants": [{ "src": ["tag:media"], "dst": ["tag:server"], "ip": ["tcp:445"] }]
+  }
+}
