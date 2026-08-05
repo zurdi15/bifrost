@@ -166,13 +166,7 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
 
       <p v-if="loaded && devices.length === 0" class="empty">{{ t('tailnet.empty') }}</p>
 
-      <div
-        v-else
-        ref="bodyEl"
-        class="body"
-        :class="{ 'with-dossier': selectedDevice }"
-        :style="{ '--body-top': `${bodyTop}px` }"
-      >
+      <div v-else ref="bodyEl" class="body" :style="{ '--body-top': `${bodyTop}px` }">
         <!-- Mount only after the viewport offset is measured: the map's first
              layout is final, so entrances play over a still constellation. -->
         <TailnetMap
@@ -289,28 +283,45 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   animation: bf-rotate 1s linear infinite;
 }
 
+/* One full-bleed stage: the map owns the whole box and the dossier floats
+   over it — selecting a node never resizes the map or reflows the sky.
+   Height fills the viewport to a slim margin with no page scroll (the
+   negative margin swallows the app content's bottom padding below us). */
 .body {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.9rem;
-  align-items: stretch;
+  position: relative;
+  height: calc(100dvh - var(--body-top, 0px) - 1rem);
+  margin-bottom: -1.5rem;
+  min-height: 20rem;
 }
-.body.with-dossier {
-  grid-template-columns: minmax(0, 1fr) 21rem;
-}
-@media (min-width: 960px) {
-  /* Fill the viewport to a slim bottom margin, no page scroll: the negative
-     margin swallows the app content's 2.5rem bottom padding below us, and
-     the dossier column scrolls itself. */
+@media (max-width: 720px) {
+  /* The floating dock reserves the bottom on mobile — stop just above it. */
   .body {
-    height: calc(100dvh - var(--body-top, 0px) - 1rem);
-    margin-bottom: -1.5rem;
-    min-height: 24rem;
+    height: calc(100dvh - var(--body-top, 0px) - 4.8rem - env(safe-area-inset-bottom, 0px));
+    margin-bottom: -0.7rem;
   }
 }
-@media (max-width: 959px) {
-  .body.with-dossier {
-    grid-template-columns: 1fr;
+
+/* The dossier is a glass panel pinned over the map's right edge; on small
+   screens it becomes a bottom sheet rising over the constellation. */
+.body .dossier {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 21rem;
+  max-width: calc(100% - 1.8rem);
+  max-height: calc(100% - 1.8rem);
+  z-index: 5;
+}
+@media (max-width: 720px) {
+  .body .dossier {
+    top: auto;
+    left: 0.6rem;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    width: auto;
+    max-width: none;
+    max-height: 62%;
+    animation-name: bf-rise-in;
   }
 }
 

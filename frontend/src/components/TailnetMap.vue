@@ -571,13 +571,7 @@ function onNodeCancel(id: string): void {
   border: 1px solid var(--bf-line);
   border-radius: var(--bf-radius-card);
   background: var(--bf-bg-deep);
-  aspect-ratio: 1000 / 620;
-}
-@media (min-width: 960px) {
-  .map {
-    aspect-ratio: auto;
-    height: 100%;
-  }
+  height: 100%;
 }
 svg {
   position: absolute;

@@ -199,9 +199,13 @@ function portLabel(port: string): string {
   flex-direction: column;
   gap: 0.7rem;
   padding: 0.9rem 1rem 1.1rem;
-  border: 1px solid var(--bf-line);
+  border: 1px solid var(--bf-line-strong);
   border-radius: var(--bf-radius-card);
-  background: var(--bf-surface);
+  /* Glass over the constellation — it floats above the map, never beside it. */
+  background: color-mix(in srgb, var(--bf-surface) 80%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: var(--bf-shadow-lift);
   max-height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
