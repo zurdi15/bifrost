@@ -177,6 +177,16 @@ const neighbors = computed(() => {
   }
   return set;
 });
+// One persistent reticle that teleports to the selected node: mounting it
+// per-node created and destroyed compositor layers on every select/deselect,
+// and that re-layerization is what flashed the screen.
+const selAt = computed(() =>
+  props.selected ? positions.value.get(props.selected) : undefined,
+);
+const selTone = computed(() => {
+  const device = props.selected ? byId.value.get(props.selected) : undefined;
+  return device ? toneNum(device) : 2;
+});
 
 function matchesQuery(device: TailnetDevice): boolean {
   const q = props.query.trim().toLowerCase();
@@ -264,7 +274,18 @@ function pairDim(pair: PairEdge): boolean {
 
 // ── pan / zoom ───────────────────────────────────────────────────────────
 const svg = ref<SVGSVGElement | null>(null);
-const viewBox = computed(() => `${view.value.x} ${view.value.y} ${view.value.w} ${view.value.h}`);
+// The viewBox never moves — the camera is one composited CSS transform on a
+// single group. Mutating the viewBox invalidated and repainted the whole
+// SVG (every label, pattern and gradient) on each wheel tick and pinch
+// frame, which is exactly what integrated GPUs choke on; a transform only
+// slides cached textures.
+const baseViewBox = computed(() => `0 0 ${world.value.w} ${world.value.h}`);
+const cameraCss = computed(() => {
+  const s = world.value.w / view.value.w;
+  return {
+    transform: `translate(${-view.value.x * s}px, ${-view.value.y * s}px) scale(${s})`,
+  };
+});
 
 function toSvgPoint(clientX: number, clientY: number): XY {
   const rect = svg.value?.getBoundingClientRect();
@@ -431,7 +452,7 @@ function onNodeCancel(id: string): void {
   <div ref="wrap" class="map" :class="{ picking: selected !== null }">
     <svg
       ref="svg"
-      :viewBox="viewBox"
+      :viewBox="baseViewBox"
       preserveAspectRatio="xMidYMid slice"
       role="img"
       :aria-label="t('tailnet.mapLabel')"
@@ -491,6 +512,9 @@ function onNodeCancel(id: string): void {
           <stop offset="1" class="wave-stop-b edge-stop" />
         </linearGradient>
       </defs>
+
+      <!-- The camera: pan and zoom are this one composited transform. -->
+      <g class="camera" :style="cameraCss">
 
       <!-- Cyber mesh: two dot lattices in WORLD space (they pan and zoom with
            the constellation), each drifting one pattern period for a seamless
@@ -570,8 +594,10 @@ function onNodeCancel(id: string): void {
         />
       </g>
 
-      <!-- Focus flows: directed, cyan out of the selected node, violet in. -->
-      <g v-if="selected" class="flows" aria-hidden="true">
+      <!-- Focus flows: directed, cyan out of the selected node, violet in.
+           Always mounted so the compositor layer survives selection changes —
+           tearing it down on deselect re-layerized the screen (flash). -->
+      <g class="flows" aria-hidden="true">
         <path
           v-for="edge in active"
           :key="`${edge.src}>${edge.dst}`"
@@ -632,14 +658,6 @@ function onNodeCancel(id: string): void {
             <circle class="halo" r="30" :fill="`url(#${uid}-g${node.tone})`" />
             <circle v-if="node.d.online" class="pulse" r="11" />
             <circle class="orbit" r="19" />
-            <g v-if="node.sel" class="reticle" aria-hidden="true">
-              <circle class="ret-spin" r="24" />
-              <circle class="ret-counter" r="28" />
-              <line x1="-34" y1="0" x2="-26" y2="0" />
-              <line x1="26" y1="0" x2="34" y2="0" />
-              <line x1="0" y1="-34" x2="0" y2="-26" />
-              <line x1="0" y1="26" x2="0" y2="34" />
-            </g>
             <circle class="ring" r="14" />
             <polygon v-if="node.d.tags.length" class="core" :points="HEX" />
             <circle v-else class="core" r="9.5" />
@@ -649,6 +667,24 @@ function onNodeCancel(id: string): void {
             <text class="sub bf-metric" y="43">{{ node.d.ips[0] }}</text>
           </g>
         </g>
+      </g>
+
+      <!-- The selection reticle (single, persistent — see selAt). -->
+      <g
+        class="reticle"
+        :class="{ live: selAt }"
+        aria-hidden="true"
+        :transform="selAt ? `translate(${selAt.x} ${selAt.y})` : undefined"
+        :style="{ '--tone': `var(--bf-aurora-${selTone})` }"
+      >
+        <circle class="ret-spin" r="24" />
+        <circle class="ret-counter" r="28" />
+        <line x1="-34" y1="0" x2="-26" y2="0" />
+        <line x1="26" y1="0" x2="34" y2="0" />
+        <line x1="0" y1="-34" x2="0" y2="-26" />
+        <line x1="0" y1="26" x2="0" y2="34" />
+      </g>
+
       </g>
     </svg>
 
@@ -690,6 +726,12 @@ svg {
 }
 svg:active {
   cursor: grabbing;
+}
+/* Pan/zoom camera. transform-origin 0 0 is load-bearing: SVG elements
+   default to view-box centering, which would break the scale math. */
+.camera {
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 /* ── cyber mesh ── */
@@ -773,13 +815,14 @@ svg:active {
   animation-delay: 1000ms;
   will-change: transform;
 }
+/* No non-scaling-stroke here or on .flow: it re-evaluates against the
+   screen, forcing a repaint per zoom step — motes scale with the world. */
 .edge-flow {
   fill: none;
   stroke: color-mix(in srgb, var(--bf-aurora-3) 60%, transparent);
   stroke-width: 1.4;
   stroke-linecap: round;
   stroke-dasharray: 2 14;
-  vector-effect: non-scaling-stroke;
   animation: bf-flow 2.6s linear infinite;
   animation-delay: var(--fd, 0s);
   opacity: 0.55;
@@ -810,7 +853,6 @@ svg:active {
   stroke-width: 1.7;
   stroke-dasharray: 7 9;
   stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
   animation: bf-flow 1.1s linear infinite;
 }
 .flow.out {
@@ -821,10 +863,13 @@ svg:active {
 }
 
 /* ── nodes ── */
+/* Own layer per node: physics moves and dim fades become compositor work
+   instead of re-rasterizing the constellation. */
 .node {
   cursor: pointer;
   outline: none;
   transition: opacity var(--bf-dur-300);
+  will-change: transform, opacity;
 }
 .node.dim {
   opacity: 0.14;
@@ -906,6 +951,18 @@ svg:active {
   opacity: 0.25;
 }
 
+/* Hidden, not unmounted, when nothing is selected — and asleep while
+   hidden so the spin costs nothing. */
+.reticle {
+  visibility: hidden;
+}
+.reticle.live {
+  visibility: visible;
+}
+.reticle:not(.live) .ret-spin,
+.reticle:not(.live) .ret-counter {
+  animation-play-state: paused;
+}
 .reticle line {
   stroke: var(--tone, var(--bf-aurora-2));
   stroke-width: 1.2;
@@ -995,6 +1052,7 @@ svg:active {
 
 .internet {
   transition: opacity var(--bf-dur-300);
+  will-change: transform, opacity;
 }
 .internet.dim {
   opacity: 0.15;
