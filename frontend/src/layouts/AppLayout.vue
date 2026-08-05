@@ -44,7 +44,7 @@ const NAV = [
   { to: '/storage', key: 'nav.storage', icon: mdiHarddisk, exact: false },
   { to: '/jobs', key: 'nav.jobs', icon: mdiCalendarClock, exact: false },
   { to: '/gateway', key: 'nav.gateway', icon: mdiRouterNetwork, exact: false },
-  { to: '/tailnet', key: 'nav.tailnet', icon: mdiRadar, exact: false },
+  { to: '/network', key: 'nav.tailnet', icon: mdiRadar, exact: false },
   { to: '/settings', key: 'nav.settings', icon: mdiBellOutline, exact: false },
 ];
 

@@ -35,10 +35,12 @@ const router = createRouter({
       component: () => import("@/views/GatewayView.vue"),
     },
     {
-      path: "/tailnet",
-      name: "tailnet",
+      path: "/network",
+      name: "network",
       component: () => import("@/views/TailnetView.vue"),
     },
+    // The section used to live at /tailnet — keep old bookmarks working.
+    { path: "/tailnet", redirect: "/network" },
     {
       path: "/settings",
       name: "settings",

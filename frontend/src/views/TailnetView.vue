@@ -53,7 +53,8 @@ async function resync(): Promise<void> {
 // The bifrost network is always chartable: the hub and every node it knows,
 // wired the way they actually connect — agents dial the hub's WebSocket, the
 // hub dials endpoint checks. Without a (non-empty) tailnet it is the only
-// view; with one, tabs switch between both nets, deep-linked via #fleet.
+// view; with one, tabs switch between both nets, deep-linked via
+// #bifrost-net (#fleet, its old name, still resolves).
 const HUB_ID = 'bifrost-hub';
 const route = useRoute();
 const router = useRouter();
@@ -65,8 +66,9 @@ const fleetForced = computed(
 );
 const showTabs = computed(() => loaded.value && state.value !== null && !fleetForced.value);
 const tab = computed<'tailnet' | 'fleet'>({
-  get: () => (route.hash === '#fleet' ? 'fleet' : 'tailnet'),
-  set: (value) => void router.replace({ hash: value === 'fleet' ? '#fleet' : '' }),
+  get: () =>
+    route.hash === '#bifrost-net' || route.hash === '#fleet' ? 'fleet' : 'tailnet',
+  set: (value) => void router.replace({ hash: value === 'fleet' ? '#bifrost-net' : '' }),
 });
 const fleetMode = computed(
   () => fleetForced.value || (showTabs.value && tab.value === 'fleet'),
