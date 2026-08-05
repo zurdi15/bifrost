@@ -24,7 +24,6 @@ const { t } = useI18n();
 
 const HEX = '11,0 5.5,9.5 -5.5,9.5 -11,0 -5.5,-9.5 5.5,-9.5';
 const EXPIRY_SOON_S = 14 * 86400;
-const MESH_MARGIN = 1500;
 
 const uid = useId();
 const now = Math.floor(Date.now() / 1000);
@@ -58,6 +57,10 @@ function tick(): void {
 function ensureRunning(): void {
   if (!raf) raf = requestAnimationFrame(tick);
 }
+
+// Just enough backdrop to cover the pan/zoom clamps (±25% pan, 1.5× zoom
+// out) — oversizing it cost real paint area on phones and flickered.
+const meshMargin = computed(() => Math.max(600, Math.max(world.value.w, world.value.h) * 0.8));
 
 const ids = computed(() => {
   const list = props.devices.map((d) => d.id);
@@ -122,6 +125,12 @@ onMounted(() => {
     wrap.value.addEventListener('pointermove', onCapturedMove, true);
     wrap.value.addEventListener('pointerup', onCapturedUp, true);
     wrap.value.addEventListener('pointercancel', onCapturedUp, true);
+    // Belt and braces for real phones: some browsers still hand a two-finger
+    // gesture to page zoom unless the touch/gesture defaults are refused
+    // outright (Safari's proprietary gesture* events included).
+    wrap.value.addEventListener('touchmove', onTouchMove, { passive: false });
+    wrap.value.addEventListener('gesturestart', preventEvent);
+    wrap.value.addEventListener('gesturechange', preventEvent);
   }
 });
 onBeforeUnmount(() => {
@@ -132,8 +141,18 @@ onBeforeUnmount(() => {
     wrap.value.removeEventListener('pointermove', onCapturedMove, true);
     wrap.value.removeEventListener('pointerup', onCapturedUp, true);
     wrap.value.removeEventListener('pointercancel', onCapturedUp, true);
+    wrap.value.removeEventListener('touchmove', onTouchMove);
+    wrap.value.removeEventListener('gesturestart', preventEvent);
+    wrap.value.removeEventListener('gesturechange', preventEvent);
   }
 });
+
+function preventEvent(event: Event): void {
+  event.preventDefault();
+}
+function onTouchMove(event: TouchEvent): void {
+  if (event.touches.length > 1) event.preventDefault();
+}
 
 // ── graph view-models ────────────────────────────────────────────────────
 const byId = computed(() => new Map(props.devices.map((d) => [d.id, d])));
@@ -480,19 +499,19 @@ function onNodeCancel(id: string): void {
         />
         <g class="mesh-a">
           <rect
-            :x="-MESH_MARGIN"
-            :y="-MESH_MARGIN"
-            :width="world.w + MESH_MARGIN * 2"
-            :height="world.h + MESH_MARGIN * 2"
+            :x="-meshMargin"
+            :y="-meshMargin"
+            :width="world.w + meshMargin * 2"
+            :height="world.h + meshMargin * 2"
             :fill="`url(#${uid}-dotsA)`"
           />
         </g>
         <g class="mesh-b">
           <rect
-            :x="-MESH_MARGIN"
-            :y="-MESH_MARGIN"
-            :width="world.w + MESH_MARGIN * 2"
-            :height="world.h + MESH_MARGIN * 2"
+            :x="-meshMargin"
+            :y="-meshMargin"
+            :width="world.w + meshMargin * 2"
+            :height="world.h + meshMargin * 2"
             :fill="`url(#${uid}-dotsB)`"
           />
         </g>
@@ -500,19 +519,19 @@ function onNodeCancel(id: string): void {
              the dots up as they pass. -->
         <g class="wave-a">
           <rect
-            :x="-MESH_MARGIN"
-            :y="-MESH_MARGIN"
-            :width="world.w + MESH_MARGIN * 2"
-            :height="world.h + MESH_MARGIN * 2"
+            :x="-meshMargin"
+            :y="-meshMargin"
+            :width="world.w + meshMargin * 2"
+            :height="world.h + meshMargin * 2"
             :fill="`url(#${uid}-waveA)`"
           />
         </g>
         <g class="wave-b">
           <rect
-            :x="-MESH_MARGIN"
-            :y="-MESH_MARGIN"
-            :width="world.w + MESH_MARGIN * 2"
-            :height="world.h + MESH_MARGIN * 2"
+            :x="-meshMargin"
+            :y="-meshMargin"
+            :width="world.w + meshMargin * 2"
+            :height="world.h + meshMargin * 2"
             :fill="`url(#${uid}-waveB)`"
           />
         </g>
@@ -649,6 +668,7 @@ function onNodeCancel(id: string): void {
   border-radius: var(--bf-radius-card);
   background: var(--bf-bg-deep);
   height: 100%;
+  touch-action: none;
 }
 svg {
   position: absolute;
@@ -1034,6 +1054,16 @@ svg:active {
 @media (max-width: 720px) {
   .legend {
     display: none;
+  }
+  /* Full-canvas animations repaint the entire SVG every frame — on phone
+     GPUs that reads as whole-screen render flicker. The backdrop and the
+     mote shimmer hold still on small screens; nodes keep their life. */
+  .mesh-a,
+  .mesh-b,
+  .wave-a,
+  .wave-b,
+  .edge-flow {
+    animation: none;
   }
 }
 </style>

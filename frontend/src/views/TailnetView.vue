@@ -289,6 +289,8 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
    negative margin swallows the app content's bottom padding below us). */
 .body {
   position: relative;
+  /* Contain repaints: map + floating dossier composite as one island. */
+  isolation: isolate;
   height: calc(100dvh - var(--body-top, 0px) - 1rem);
   margin-bottom: -1.5rem;
   min-height: 20rem;

@@ -210,6 +210,16 @@ function portLabel(port: string): string {
   overflow-y: auto;
   box-sizing: border-box;
 }
+/* Phones skip the live blur: compositing it over the animated map is what
+   made the whole screen flicker, worst when tearing the layer down on
+   close. A near-opaque surface reads the same at this size. */
+@media (max-width: 720px) {
+  .dossier {
+    background: color-mix(in srgb, var(--bf-surface) 96%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 .head {
   display: flex;
   align-items: flex-start;

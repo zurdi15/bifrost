@@ -18,7 +18,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const PAD = 64;
 // Generous floor: node labels render at ~10px mono below each core, so
 // neighbors need real air for names to stay legible (phones especially).
-const MIN_DIST = 62;
+const MIN_DIST = 70;
 const FRICTION = 0.58;
 const ALPHA_DECAY = 0.968;
 const ALPHA_REST = 0.015;
@@ -150,8 +150,9 @@ export function createSimulation(width: number, height: number): Simulation {
       node.x = Math.min(w - PAD, Math.max(PAD, node.x));
       node.y = Math.min(h - PAD, Math.max(PAD, node.y));
     }
-    if (minor) return;
-    alpha = Math.max(alpha, 0.2);
+    // No reheat: a proportional scale of an equilibrium is an equilibrium.
+    // Mobile browsers fire resizes constantly (URL bar show/hide) and every
+    // re-anneal would visibly reshuffle the constellation.
   }
 
   function step(): boolean {
@@ -201,8 +202,10 @@ export function createSimulation(width: number, height: number): Simulation {
         fx[j] -= vx * f;
         fy[j] -= vy * f;
       }
-      fx[i] += (w / 2 - a.x) * 0.04;
-      fy[i] += (h / 2 - a.y) * 0.04;
+      // Light gravity: strong enough to keep strays on canvas, weak enough
+      // that the constellation actually uses the space (tall phones included).
+      fx[i] += (w / 2 - a.x) * 0.028;
+      fy[i] += (h / 2 - a.y) * 0.028;
     }
     for (const [a, b] of springs) {
       const i = index.get(a)!;
