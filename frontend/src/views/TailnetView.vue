@@ -284,10 +284,12 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   grid-template-columns: minmax(0, 1fr) 21rem;
 }
 @media (min-width: 960px) {
-  /* Fill the viewport: no page scroll — the dossier column scrolls itself.
-     2.5rem is the app content's bottom padding, which sits below us. */
+  /* Fill the viewport to a slim bottom margin, no page scroll: the negative
+     margin swallows the app content's 2.5rem bottom padding below us, and
+     the dossier column scrolls itself. */
   .body {
-    height: calc(100dvh - var(--body-top, 0px) - 2.5rem);
+    height: calc(100dvh - var(--body-top, 0px) - 1rem);
+    margin-bottom: -1.5rem;
     min-height: 24rem;
   }
 }

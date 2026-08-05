@@ -353,6 +353,34 @@ function onNodeCancel(id: string): void {
           <stop offset="0%" class="vig-in" />
           <stop offset="100%" class="vig-out" />
         </radialGradient>
+        <!-- Repeating diagonal bands (userSpace + repeat): translating the
+             host group by exactly one period vector loops seamlessly. -->
+        <linearGradient
+          :id="`${uid}-waveA`"
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2="520"
+          y2="182"
+          spreadMethod="repeat"
+        >
+          <stop offset="0" class="wave-stop-a edge-stop" />
+          <stop offset="0.5" class="wave-stop-a peak-stop" />
+          <stop offset="1" class="wave-stop-a edge-stop" />
+        </linearGradient>
+        <linearGradient
+          :id="`${uid}-waveB`"
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2="-560"
+          y2="308"
+          spreadMethod="repeat"
+        >
+          <stop offset="0" class="wave-stop-b edge-stop" />
+          <stop offset="0.5" class="wave-stop-b peak-stop" />
+          <stop offset="1" class="wave-stop-b edge-stop" />
+        </linearGradient>
       </defs>
 
       <!-- Cyber mesh: two dot lattices in WORLD space (they pan and zoom with
@@ -383,6 +411,26 @@ function onNodeCancel(id: string): void {
             :width="world.w + MESH_MARGIN * 2"
             :height="world.h + MESH_MARGIN * 2"
             :fill="`url(#${uid}-dotsB)`"
+          />
+        </g>
+        <!-- Dot waves: soft aurora bands wash across the lattice and light
+             the dots up as they pass. -->
+        <g class="wave-a">
+          <rect
+            :x="-MESH_MARGIN"
+            :y="-MESH_MARGIN"
+            :width="world.w + MESH_MARGIN * 2"
+            :height="world.h + MESH_MARGIN * 2"
+            :fill="`url(#${uid}-waveA)`"
+          />
+        </g>
+        <g class="wave-b">
+          <rect
+            :x="-MESH_MARGIN"
+            :y="-MESH_MARGIN"
+            :width="world.w + MESH_MARGIN * 2"
+            :height="world.h + MESH_MARGIN * 2"
+            :fill="`url(#${uid}-waveB)`"
           />
         </g>
       </g>
@@ -543,6 +591,31 @@ svg:active {
   animation: bf-mesh-drift 90s linear infinite;
   --mesh-dx: -74px;
   --mesh-dy: 74px;
+}
+.wave-a {
+  animation: bf-mesh-drift 21s linear infinite;
+  --mesh-dx: 520px;
+  --mesh-dy: 182px;
+}
+.wave-b {
+  animation: bf-mesh-drift 34s linear infinite;
+  --mesh-dx: -560px;
+  --mesh-dy: 308px;
+}
+.wave-stop-a {
+  stop-color: var(--bf-aurora-2);
+}
+.wave-stop-b {
+  stop-color: var(--bf-aurora-4);
+}
+.edge-stop {
+  stop-opacity: 0;
+}
+.wave-stop-a.peak-stop {
+  stop-opacity: 0.055;
+}
+.wave-stop-b.peak-stop {
+  stop-opacity: 0.045;
 }
 .vig-in {
   stop-color: var(--bf-aurora-3);

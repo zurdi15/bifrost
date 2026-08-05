@@ -49,8 +49,11 @@ watch(tab, placeInk, { flush: 'post' });
 let inkObserver: ResizeObserver | null = null;
 onMounted(() => {
   placeInk();
-  inkObserver = new ResizeObserver(placeInk);
-  for (const el of [servicesTab.value, bookmarksTab.value, tabsEl.value]) {
+  inkObserver = new ResizeObserver(() => {
+    placeInk();
+    alignRail();
+  });
+  for (const el of [servicesTab.value, bookmarksTab.value, tabsEl.value, mainEl.value]) {
     if (el) inkObserver.observe(el);
   }
   document.addEventListener('pointerdown', onDocPointerDown);
@@ -59,6 +62,34 @@ onBeforeUnmount(() => {
   inkObserver?.disconnect();
   document.removeEventListener('pointerdown', onDocPointerDown);
 });
+
+// ── machines rail alignment ──
+// The first machine card sits level with the first service card whatever the
+// group mode renders above the grid (heading or not): measured via offsetTop
+// (transform-free, so entrance animations can't skew it), self-correcting on
+// any relayout through the shared ResizeObserver.
+const mainEl = ref<HTMLElement | null>(null);
+const railStackEl = ref<HTMLElement | null>(null);
+const railNudge = ref(16);
+
+function docTop(el: HTMLElement): number {
+  let y = 0;
+  let cursor: HTMLElement | null = el;
+  while (cursor) {
+    y += cursor.offsetTop;
+    cursor = cursor.offsetParent as HTMLElement | null;
+  }
+  return y;
+}
+
+function alignRail(): void {
+  const serviceCard = mainEl.value?.querySelector<HTMLElement>('.grid > *');
+  const railCard = railStackEl.value?.firstElementChild as HTMLElement | null;
+  if (!serviceCard || !railCard) return;
+  const delta = docTop(serviceCard) - docTop(railCard);
+  if (Math.abs(delta) < 1) return;
+  railNudge.value = Math.max(16, railNudge.value + delta);
+}
 
 const ui = useUiStore();
 const live = useLiveStore();
@@ -157,7 +188,7 @@ const railHidden = computed(() => tab.value !== 'services');
         <span class="tab-ink" aria-hidden="true" />
     </nav>
 
-    <div class="main">
+    <div ref="mainEl" class="main">
       <div ref="toolbarEl" class="toolbar">
         <template v-if="tab === 'services' && hasServices">
           <button
@@ -251,10 +282,16 @@ const railHidden = computed(() => tab.value !== 'services');
 
     <!-- Machines get their own rail where the ambient widgets used to sit:
          one card wide, stacked, out of the service grids entirely. -->
-    <aside v-if="showAside" class="aside rail" :aria-label="t('nav.nodes')" :inert="railHidden">
+    <aside
+      v-if="showAside"
+      class="aside rail"
+      :aria-label="t('nav.nodes')"
+      :inert="railHidden"
+      :style="{ '--rail-nudge': `${railNudge}px` }"
+    >
       <div class="rail-body">
         <h2 class="rail-title">{{ t('nav.nodes') }}</h2>
-        <div class="rail-stack bf-stagger">
+        <div ref="railStackEl" class="rail-stack bf-stagger">
           <ContainerCard
             v-for="(machine, i) in nodeCards"
             :key="`${machine.node_uuid}:${machine.name}`"
@@ -500,34 +537,30 @@ const railHidden = computed(() => tab.value !== 'services');
     display: none;
   }
 }
-/* NODES sits on the toolbar's row: same top margin, same 1.65rem line as the
-   group/filter pills, vertically centered like them. */
+/* NODES rides just above its cards, group-heading style; the measured
+   --rail-nudge (see alignRail) drops the pair so the first machine card is
+   level with the first service card. */
 .rail-title {
-  display: flex;
-  align-items: center;
-  height: 1.65rem;
-  margin: 1rem 0 0;
+  margin: 1rem 0 0.6rem;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--bf-ink-muted);
 }
+@media (min-width: 1100px) {
+  .rail-title {
+    margin-top: var(--rail-nudge, 1rem);
+  }
+}
 .rail-stack {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* First machine card level with the first service card: toolbar's bottom
-     margin (1.1rem — the group heading's 1rem top margin collapses into it)
-     + the heading itself (0.72rem × 1.5 line + 0.6rem bottom margin). */
-  margin-top: calc(1.1rem + 0.72rem * 1.5 + 0.6rem);
 }
 @media (max-width: 1099px) {
   .rail-title {
     margin-top: 1.4rem;
-  }
-  .rail-stack {
-    margin-top: 0.6rem;
   }
 }
 </style>

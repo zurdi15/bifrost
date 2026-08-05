@@ -20,6 +20,15 @@ const MIN_DIST = 46;
 const FRICTION = 0.58;
 const ALPHA_DECAY = 0.968;
 const ALPHA_REST = 0.015;
+// Below ~half temperature, nodes whose forces roughly balance stay put —
+// settling from cold never twitches the far field.
+const FORCE_DEADZONE = 0.9;
+const SLEEP_SPEED = 0.06;
+// Under this temperature the sim is "interactive": drags and releases move
+// ONLY the touched node (edges stretch, bystanders hold still) and the
+// collision floor shoves someone aside only if you actually drop onto them.
+// Full physics still runs for layouts, graph changes and resizes.
+const INTERACTIVE_ALPHA = 0.12;
 
 export interface SimNode extends XY {
   id: string;
@@ -143,6 +152,19 @@ export function createSimulation(width: number, height: number): Simulation {
       alpha = 0;
       return false;
     }
+    if (alpha < INTERACTIVE_ALPHA) {
+      for (const node of list) {
+        node.vx = 0;
+        node.vy = 0;
+        if (node.fx !== null && node.fy !== null) {
+          node.x = node.fx;
+          node.y = node.fy;
+        }
+      }
+      collide(list);
+      alpha *= ALPHA_DECAY;
+      return alpha > ALPHA_REST;
+    }
     // Classic Fruchterman–Reingold displacements (the balance that spreads a
     // homelab-sized graph nicely), smoothed through a velocity blend so live
     // interaction reads as motion instead of teleports.
@@ -185,6 +207,7 @@ export function createSimulation(width: number, height: number): Simulation {
     }
     // Temperature: hot systems take big steps, cooling ones settle gently.
     const cap = 1 + 34 * alpha;
+    const deadzone = alpha < 0.5 ? FORCE_DEADZONE : 0;
     for (let i = 0; i < n; i++) {
       const node = list[i];
       if (node.fx !== null && node.fy !== null) {
@@ -195,15 +218,27 @@ export function createSimulation(width: number, height: number): Simulation {
         continue;
       }
       const len = Math.hypot(fx[i], fy[i]) || 1;
-      const stepLen = Math.min(len, cap);
+      let stepLen = Math.min(len, cap);
+      if (stepLen < deadzone) stepLen = 0;
       node.vx = node.vx * (1 - FRICTION) + (fx[i] / len) * stepLen * FRICTION;
       node.vy = node.vy * (1 - FRICTION) + (fy[i] / len) * stepLen * FRICTION;
+      if (Math.abs(node.vx) + Math.abs(node.vy) < SLEEP_SPEED) {
+        node.vx = 0;
+        node.vy = 0;
+        continue;
+      }
       node.x = Math.min(w - PAD, Math.max(PAD, node.x + node.vx));
       node.y = Math.min(h - PAD, Math.max(PAD, node.y + node.vy));
     }
-    // Collision floor keeps labels legible whatever the springs decide.
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
+    collide(list);
+    alpha *= ALPHA_DECAY;
+    return alpha > ALPHA_REST;
+  }
+
+  // Collision floor keeps labels legible whatever the springs decide.
+  function collide(list: SimNode[]): void {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
         const b = list[j];
         let vx = b.x - a.x;
@@ -230,8 +265,6 @@ export function createSimulation(width: number, height: number): Simulation {
         }
       }
     }
-    alpha *= ALPHA_DECAY;
-    return alpha > ALPHA_REST;
   }
 
   function settle(maxSteps = 400): void {
@@ -256,13 +289,15 @@ export function createSimulation(width: number, height: number): Simulation {
       if (!node) return;
       node.fx = Math.min(w - PAD, Math.max(PAD, x));
       node.fy = Math.min(h - PAD, Math.max(PAD, y));
-      alpha = Math.max(alpha, 0.25);
+      // Barely warm: enough for direct neighbors to give way, far below the
+      // temperature where the rest of the field starts to wander.
+      alpha = Math.max(alpha, 0.07);
     },
     release(id) {
       if (!nodes.has(id)) return;
       // The pin stays: a dragged node holds the spot you gave it and the
       // rest of the constellation relaxes around it.
-      alpha = Math.max(alpha, 0.12);
+      alpha = Math.max(alpha, 0.05);
     },
     positions() {
       const out = new Map<string, XY>();
