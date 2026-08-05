@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { mdiMagnify, mdiRefresh } from '@mdi/js';
+import { mdiRefresh } from '@mdi/js';
 
 import { fetchTailnet, refreshTailnet, type TailnetState } from '@/api/tailnet';
+import ExpandingSearch from '@/components/ExpandingSearch.vue';
 import TailnetDossier from '@/components/TailnetDossier.vue';
 import TailnetMap from '@/components/TailnetMap.vue';
 import BfChip from '@/lib/primitives/BfChip.vue';
@@ -51,6 +52,24 @@ const syncClock = computed(() =>
   state.value && state.value.fetched_at > 0 ? formatClock(state.value.fetched_at) : '—',
 );
 const unresolved = computed(() => state.value?.policy?.unresolved ?? []);
+
+// Desktop fills the viewport: the map takes 100dvh minus everything above it
+// (measured, so a wrapping console never miscalculates) and the page itself
+// never scrolls — the dossier scrolls its own content instead.
+const bodyEl = ref<HTMLElement | null>(null);
+const bodyTop = ref(0);
+function measure(): void {
+  if (bodyEl.value) {
+    bodyTop.value = Math.round(bodyEl.value.getBoundingClientRect().top + window.scrollY);
+  }
+}
+onMounted(() => {
+  window.addEventListener('resize', measure);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', measure));
+watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
+  immediate: true,
+});
 </script>
 
 <template>
@@ -116,15 +135,11 @@ const unresolved = computed(() => state.value?.policy?.unresolved ?? []);
           {{ t('tailnet.partial') }}
         </BfChip>
         <span class="spacer" />
-        <label class="scan">
-          <BfIcon :path="mdiMagnify" :size="14" />
-          <input
-            v-model="query"
-            type="search"
-            :placeholder="t('tailnet.searchPlaceholder')"
-            :aria-label="t('tailnet.searchPlaceholder')"
-          />
-        </label>
+        <ExpandingSearch
+          v-model="query"
+          :placeholder="t('tailnet.searchPlaceholder')"
+          :label="t('tailnet.search')"
+        />
         <button
           class="resync"
           type="button"
@@ -139,7 +154,13 @@ const unresolved = computed(() => state.value?.policy?.unresolved ?? []);
 
       <p v-if="loaded && devices.length === 0" class="empty">{{ t('tailnet.empty') }}</p>
 
-      <div v-else class="body" :class="{ 'with-dossier': selectedDevice }">
+      <div
+        v-else
+        ref="bodyEl"
+        class="body"
+        :class="{ 'with-dossier': selectedDevice }"
+        :style="{ '--body-top': `${bodyTop}px` }"
+      >
         <TailnetMap
           :devices="devices"
           :edges="edges"
@@ -223,36 +244,6 @@ const unresolved = computed(() => state.value?.policy?.unresolved ?? []);
 .spacer {
   flex: 1;
 }
-.scan {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
-  border: 1px solid var(--bf-line);
-  border-radius: var(--bf-radius-pill);
-  background: var(--bf-surface-sunken);
-  color: var(--bf-ink-faint);
-  transition: border-color var(--bf-dur-150);
-}
-.scan:focus-within {
-  border-color: var(--bf-line-hover);
-}
-.scan input {
-  width: 9.5rem;
-  border: none;
-  background: transparent;
-  outline: none;
-  color: var(--bf-ink);
-  font-family: var(--bf-font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-}
-.scan input::placeholder {
-  color: var(--bf-ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.62rem;
-}
 .resync {
   display: inline-flex;
   align-items: center;
@@ -292,7 +283,15 @@ const unresolved = computed(() => state.value?.policy?.unresolved ?? []);
 .body.with-dossier {
   grid-template-columns: minmax(0, 1fr) 21rem;
 }
-@media (max-width: 960px) {
+@media (min-width: 960px) {
+  /* Fill the viewport: no page scroll — the dossier column scrolls itself.
+     2.5rem is the app content's bottom padding, which sits below us. */
+  .body {
+    height: calc(100dvh - var(--body-top, 0px) - 2.5rem);
+    min-height: 24rem;
+  }
+}
+@media (max-width: 959px) {
   .body.with-dossier {
     grid-template-columns: 1fr;
   }

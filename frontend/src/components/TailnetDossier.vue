@@ -81,7 +81,6 @@ function portLabel(port: string): string {
 
 <template>
   <aside class="dossier bf-slide-in-right" :aria-label="device.name">
-    <p class="overline">{{ t('tailnet.dossier') }}</p>
     <header class="head">
       <BfStatusDot :status="device.online ? 'online' : 'offline'" :size="9" />
       <div class="who">
@@ -206,14 +205,6 @@ function portLabel(port: string): string {
   max-height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
-}
-.overline {
-  margin: 0;
-  font-family: var(--bf-font-mono);
-  font-size: 0.56rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--bf-ink-faint);
 }
 .head {
   display: flex;

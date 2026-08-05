@@ -147,11 +147,33 @@
   }
 }
 
-/* ACL flow along a highlighted tailnet edge (SVG stroke only; the offset
-   matches two periods of the 7 9 dash so the loop is seamless). */
+/* ACL flow along a tailnet edge (SVG stroke only). The -32 offset is two
+   periods of the 7 9 dash and exactly two of the idle 2 14 shimmer, so both
+   loops are seamless. */
 @keyframes bf-flow {
   to {
     stroke-dashoffset: -32;
+  }
+}
+
+/* Tailnet cyber-mesh drift: each dot lattice translates exactly one pattern
+   period (set per layer via --mesh-dx/--mesh-dy), so the loop is invisible. */
+@keyframes bf-mesh-drift {
+  to {
+    transform: translate(var(--mesh-dx, 26px), var(--mesh-dy, 26px));
+  }
+}
+
+/* Soft halo breathing on tailnet nodes (desynced per node). */
+@keyframes bf-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 1;
   }
 }
 

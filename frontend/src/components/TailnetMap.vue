@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { INTERNET_ID, type TailnetDevice, type TailnetEdge } from '@/api/tailnet';
 import { desyncMs } from '@/composables/useDesync';
-import { computeLayout, mergeEdges, type PairEdge, type XY } from '@/composables/useTailnetLayout';
+import {
+  createSimulation,
+  mergeEdges,
+  type PairEdge,
+  type XY,
+} from '@/composables/useTailnetLayout';
 
 const props = defineProps<{
   devices: TailnetDevice[];
@@ -17,14 +22,36 @@ const emit = defineEmits<{ select: [id: string | null] }>();
 
 const { t } = useI18n();
 
-// Fixed drawing space; the SVG scales to its container.
-const W = 1000;
-const H = 620;
 const HEX = '11,0 5.5,9.5 -5.5,9.5 -11,0 -5.5,-9.5 5.5,-9.5';
 const EXPIRY_SOON_S = 14 * 86400;
+const MESH_MARGIN = 1500;
 
-const glowId = useId();
+const uid = useId();
 const now = Math.floor(Date.now() / 1000);
+
+// ── world / simulation ───────────────────────────────────────────────────
+const wrap = ref<HTMLElement | null>(null);
+const world = ref({ w: 1000, h: 620 });
+const view = ref({ x: 0, y: 0, w: 1000, h: 620 });
+const sim = createSimulation(world.value.w, world.value.h);
+const positions = shallowRef<Map<string, XY>>(new Map());
+let measured = false;
+let raf = 0;
+let nodeDrag: { id: string; cx: number; cy: number; moved: boolean } | null = null;
+
+function pins(): Record<string, XY> {
+  return props.internet ? { [INTERNET_ID]: { x: world.value.w / 2, y: 76 } } : {};
+}
+
+function tick(): void {
+  raf = 0;
+  const hot = sim.step();
+  positions.value = sim.positions();
+  if (hot || nodeDrag?.moved) raf = requestAnimationFrame(tick);
+}
+function ensureRunning(): void {
+  if (!raf) raf = requestAnimationFrame(tick);
+}
 
 const ids = computed(() => {
   const list = props.devices.map((d) => d.id);
@@ -32,10 +59,6 @@ const ids = computed(() => {
   return list;
 });
 const links = computed(() => props.edges.map((e) => [e.src, e.dst] as const));
-
-// Re-run the simulation only when the topology itself changes — a refetch
-// with identical devices must not make the constellation jump.
-const layout = ref<Map<string, XY>>(new Map());
 const fingerprint = computed(
   () =>
     [...ids.value].sort().join() +
@@ -48,17 +71,53 @@ const fingerprint = computed(
 watch(
   fingerprint,
   () => {
-    layout.value = computeLayout(
-      ids.value,
-      links.value,
-      W,
-      H,
-      props.internet ? { [INTERNET_ID]: { x: W / 2, y: 64 } } : {},
-    );
+    sim.setGraph(ids.value, links.value, pins());
+    if (!positions.value.size) {
+      // First paint: land a rough constellation instantly, then let the
+      // last few percent relax on screen.
+      sim.settle(160);
+      sim.reheat(0.1);
+    }
+    positions.value = sim.positions();
+    ensureRunning();
   },
   { immediate: true },
 );
 
+let resizeObserver: ResizeObserver | null = null;
+onMounted(() => {
+  resizeObserver = new ResizeObserver((entries) => {
+    const rect = entries[0].contentRect;
+    if (rect.width < 60 || rect.height < 60) return;
+    const prev = world.value;
+    world.value = { w: rect.width, h: rect.height };
+    sim.resize(rect.width, rect.height, pins());
+    if (!measured) {
+      measured = true;
+      view.value = { x: 0, y: 0, w: rect.width, h: rect.height };
+      sim.settle(160);
+      sim.reheat(0.08);
+    } else {
+      const kx = rect.width / prev.w;
+      const ky = rect.height / prev.h;
+      view.value = {
+        x: view.value.x * kx,
+        y: view.value.y * ky,
+        w: view.value.w * kx,
+        h: view.value.h * ky,
+      };
+    }
+    positions.value = sim.positions();
+    ensureRunning();
+  });
+  if (wrap.value) resizeObserver.observe(wrap.value);
+});
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  if (raf) cancelAnimationFrame(raf);
+});
+
+// ── graph view-models ────────────────────────────────────────────────────
 const byId = computed(() => new Map(props.devices.map((d) => [d.id, d])));
 const pairs = computed(() => mergeEdges(props.edges));
 const active = computed(() =>
@@ -87,6 +146,13 @@ function matchesQuery(device: TailnetDevice): boolean {
   );
 }
 
+function toneNum(device: TailnetDevice): number {
+  if (device.exit_node) return 5;
+  if (device.tags.length) return 2;
+  if (device.external) return 4;
+  return 3;
+}
+
 interface NodeVm {
   d: TailnetDevice;
   x: number;
@@ -94,13 +160,15 @@ interface NodeVm {
   dim: boolean;
   sel: boolean;
   warn: boolean;
+  tone: number;
 }
 
 const nodes = computed<NodeVm[]>(() =>
   props.devices.flatMap((d) => {
-    const at = layout.value.get(d.id);
+    const at = positions.value.get(d.id);
     if (!at) return [];
-    const dimSelect = props.selected !== null && props.selected !== d.id && !neighbors.value.has(d.id);
+    const dimSelect =
+      props.selected !== null && props.selected !== d.id && !neighbors.value.has(d.id);
     return [
       {
         d,
@@ -111,20 +179,21 @@ const nodes = computed<NodeVm[]>(() =>
         warn:
           d.update_available ||
           (d.expires > 0 && !d.key_expiry_disabled && d.expires - now < EXPIRY_SOON_S),
+        tone: toneNum(d),
       },
     ];
   }),
 );
 
-const internetAt = computed(() => layout.value.get(INTERNET_ID));
+const internetAt = computed(() => positions.value.get(INTERNET_ID));
 const internetDim = computed(
   () => props.selected !== null && !neighbors.value.has(INTERNET_ID),
 );
 
 /** Both directions of a pair share the same bow, so flows overlay the base. */
 function curve(aId: string, bId: string): string {
-  const a = layout.value.get(aId);
-  const b = layout.value.get(bId);
+  const a = positions.value.get(aId);
+  const b = positions.value.get(bId);
   if (!a || !b) return '';
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
@@ -145,14 +214,17 @@ function pairTitle(pair: PairEdge): string {
   return parts.join('\n');
 }
 
+function pairDim(pair: PairEdge): boolean {
+  return props.selected !== null && pair.a !== props.selected && pair.b !== props.selected;
+}
+
 // ── pan / zoom ───────────────────────────────────────────────────────────
 const svg = ref<SVGSVGElement | null>(null);
-const view = ref({ x: 0, y: 0, w: W, h: H });
 const viewBox = computed(() => `${view.value.x} ${view.value.y} ${view.value.w} ${view.value.h}`);
 
 function toSvgPoint(clientX: number, clientY: number): XY {
   const rect = svg.value?.getBoundingClientRect();
-  if (!rect || rect.width === 0) return { x: W / 2, y: H / 2 };
+  if (!rect || rect.width === 0) return { x: world.value.w / 2, y: world.value.h / 2 };
   return {
     x: view.value.x + ((clientX - rect.left) / rect.width) * view.value.w,
     y: view.value.y + ((clientY - rect.top) / rect.height) * view.value.h,
@@ -161,8 +233,8 @@ function toSvgPoint(clientX: number, clientY: number): XY {
 
 function clampView(x: number, y: number, w: number, h: number): void {
   view.value = {
-    x: Math.min(W * 1.25 - w, Math.max(-W * 0.25, x)),
-    y: Math.min(H * 1.25 - h, Math.max(-H * 0.25, y)),
+    x: Math.min(world.value.w * 1.25 - w, Math.max(-world.value.w * 0.25, x)),
+    y: Math.min(world.value.h * 1.25 - h, Math.max(-world.value.h * 0.25, y)),
     w,
     h,
   };
@@ -171,60 +243,87 @@ function clampView(x: number, y: number, w: number, h: number): void {
 function onWheel(event: WheelEvent): void {
   const at = toSvgPoint(event.clientX, event.clientY);
   const factor = event.deltaY > 0 ? 1.18 : 1 / 1.18;
-  const w = Math.min(W * 1.5, Math.max(W / 6, view.value.w * factor));
-  const h = (w / W) * H;
+  const w = Math.min(world.value.w * 1.5, Math.max(world.value.w / 6, view.value.w * factor));
+  const h = (w / world.value.w) * world.value.h;
   const kx = (at.x - view.value.x) / view.value.w;
   const ky = (at.y - view.value.y) / view.value.h;
   clampView(at.x - kx * w, at.y - ky * h, w, h);
 }
 
-let dragFrom: { x: number; y: number } | null = null;
-let dragMoved = false;
+let panFrom: { x: number; y: number } | null = null;
+let panMoved = false;
 
 function onPointerDown(event: PointerEvent): void {
-  dragFrom = { x: event.clientX, y: event.clientY };
-  dragMoved = false;
+  panFrom = { x: event.clientX, y: event.clientY };
+  panMoved = false;
 }
-
 function onPointerMove(event: PointerEvent): void {
-  if (!dragFrom) return;
+  if (!panFrom) return;
   const rect = svg.value?.getBoundingClientRect();
   if (!rect || rect.width === 0) return;
-  const dx = ((event.clientX - dragFrom.x) / rect.width) * view.value.w;
-  const dy = ((event.clientY - dragFrom.y) / rect.height) * view.value.h;
-  if (Math.abs(event.clientX - dragFrom.x) + Math.abs(event.clientY - dragFrom.y) > 3) {
-    dragMoved = true;
+  const dx = ((event.clientX - panFrom.x) / rect.width) * view.value.w;
+  const dy = ((event.clientY - panFrom.y) / rect.height) * view.value.h;
+  if (Math.abs(event.clientX - panFrom.x) + Math.abs(event.clientY - panFrom.y) > 3) {
+    panMoved = true;
   }
-  dragFrom = { x: event.clientX, y: event.clientY };
+  panFrom = { x: event.clientX, y: event.clientY };
   clampView(view.value.x - dx, view.value.y - dy, view.value.w, view.value.h);
 }
-
 function onPointerUp(): void {
-  dragFrom = null;
+  panFrom = null;
 }
-
 function resetView(): void {
-  view.value = { x: 0, y: 0, w: W, h: H };
+  view.value = { x: 0, y: 0, w: world.value.w, h: world.value.h };
 }
-
 function onBackgroundClick(): void {
-  if (!dragMoved) emit('select', null);
+  if (!panMoved) emit('select', null);
 }
 
-function pick(id: string): void {
-  if (dragMoved) return;
-  emit('select', props.selected === id ? null : id);
+// ── node dragging (physics) ──────────────────────────────────────────────
+function onNodeDown(event: PointerEvent, id: string): void {
+  event.stopPropagation();
+  (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+  nodeDrag = { id, cx: event.clientX, cy: event.clientY, moved: false };
+}
+function onNodeMove(event: PointerEvent, id: string): void {
+  if (!nodeDrag || nodeDrag.id !== id) return;
+  if (
+    !nodeDrag.moved &&
+    Math.abs(event.clientX - nodeDrag.cx) + Math.abs(event.clientY - nodeDrag.cy) < 4
+  ) {
+    return;
+  }
+  nodeDrag.moved = true;
+  const at = toSvgPoint(event.clientX, event.clientY);
+  sim.drag(id, at.x, at.y);
+  ensureRunning();
+}
+function onNodeUp(id: string): void {
+  if (!nodeDrag || nodeDrag.id !== id) return;
+  const wasDrag = nodeDrag.moved;
+  nodeDrag = null;
+  if (wasDrag) {
+    sim.release(id);
+    ensureRunning();
+  } else {
+    emit('select', props.selected === id ? null : id);
+  }
+}
+function onNodeCancel(id: string): void {
+  if (nodeDrag?.id === id) {
+    nodeDrag = null;
+    sim.release(id);
+    ensureRunning();
+  }
 }
 </script>
 
 <template>
-  <div class="map" :class="{ picking: selected !== null }">
-    <!-- Radar sweep: pure CSS, sits under the SVG. -->
-    <div class="sweep" aria-hidden="true" />
+  <div ref="wrap" class="map" :class="{ picking: selected !== null }">
     <svg
       ref="svg"
       :viewBox="viewBox"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="xMidYMid slice"
       role="img"
       :aria-label="t('tailnet.mapLabel')"
       @wheel.prevent="onWheel"
@@ -236,31 +335,73 @@ function pick(id: string): void {
       @dblclick="resetView"
     >
       <defs>
-        <radialGradient :id="glowId">
-          <stop offset="0%" class="glow-in" />
-          <stop offset="100%" class="glow-out" />
+        <pattern :id="`${uid}-dotsA`" width="26" height="26" patternUnits="userSpaceOnUse">
+          <circle class="dot-a" cx="1.2" cy="1.2" r="1.2" />
+        </pattern>
+        <pattern :id="`${uid}-dotsB`" width="74" height="74" patternUnits="userSpaceOnUse">
+          <circle class="dot-b" cx="2" cy="2" r="1.7" />
+        </pattern>
+        <radialGradient
+          v-for="toneId in [2, 3, 4, 5]"
+          :id="`${uid}-g${toneId}`"
+          :key="toneId"
+        >
+          <stop offset="0%" :style="{ stopColor: `var(--bf-aurora-${toneId})` }" stop-opacity="0.28" />
+          <stop offset="100%" :style="{ stopColor: `var(--bf-aurora-${toneId})` }" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient :id="`${uid}-vig`">
+          <stop offset="0%" class="vig-in" />
+          <stop offset="100%" class="vig-out" />
         </radialGradient>
       </defs>
 
-      <!-- Polar grid: quiet instrument backdrop. -->
-      <g class="polar" aria-hidden="true">
-        <circle v-for="r in [95, 175, 255]" :key="r" :cx="W / 2" :cy="H / 2" :r="r" />
-        <line :x1="W / 2" :y1="H / 2 - 268" :x2="W / 2" :y2="H / 2 + 268" />
-        <line :x1="W / 2 - 268" :y1="H / 2" :x2="W / 2 + 268" :y2="H / 2" />
+      <!-- Cyber mesh: two dot lattices in WORLD space (they pan and zoom with
+           the constellation), each drifting one pattern period for a seamless
+           parallax loop. -->
+      <g class="mesh" aria-hidden="true">
+        <ellipse
+          class="vig"
+          :cx="world.w / 2"
+          :cy="world.h / 2"
+          :rx="world.w * 0.62"
+          :ry="world.h * 0.62"
+          :fill="`url(#${uid}-vig)`"
+        />
+        <g class="mesh-a">
+          <rect
+            :x="-MESH_MARGIN"
+            :y="-MESH_MARGIN"
+            :width="world.w + MESH_MARGIN * 2"
+            :height="world.h + MESH_MARGIN * 2"
+            :fill="`url(#${uid}-dotsA)`"
+          />
+        </g>
+        <g class="mesh-b">
+          <rect
+            :x="-MESH_MARGIN"
+            :y="-MESH_MARGIN"
+            :width="world.w + MESH_MARGIN * 2"
+            :height="world.h + MESH_MARGIN * 2"
+            :fill="`url(#${uid}-dotsB)`"
+          />
+        </g>
       </g>
 
-      <!-- Base links: every allowed pair, drawn in on load. -->
+      <!-- Links: quiet base line + a slow shimmer of data motes on every
+           allowed pair; the web is alive even before you touch it. -->
       <g class="edges">
-        <path
-          v-for="pair in pairs"
-          :key="`${pair.a}|${pair.b}`"
-          class="edge"
-          :class="{ dim: selected !== null && pair.a !== selected && pair.b !== selected }"
-          :d="curve(pair.a, pair.b)"
-          pathLength="1"
-        >
-          <title>{{ pairTitle(pair) }}</title>
-        </path>
+        <template v-for="(pair, pi) in pairs" :key="`${pair.a}|${pair.b}`">
+          <path class="edge" :class="{ dim: pairDim(pair) }" :d="curve(pair.a, pair.b)">
+            <title>{{ pairTitle(pair) }}</title>
+          </path>
+          <path
+            class="edge-flow"
+            :class="{ dim: pairDim(pair) }"
+            :d="curve(pair.a, pair.b)"
+            :style="{ '--fd': `${(pi % 9) * -0.35}s` }"
+            aria-hidden="true"
+          />
+        </template>
       </g>
 
       <!-- Focus flows: directed, cyan out of the selected node, violet in. -->
@@ -282,6 +423,7 @@ function pick(id: string): void {
         :transform="`translate(${internetAt.x} ${internetAt.y})`"
         aria-hidden="true"
       >
+        <circle class="halo" r="34" :fill="`url(#${uid}-g5)`" />
         <circle class="orbit" r="19" />
         <circle class="globe" r="11" />
         <ellipse class="meridian" rx="4.5" ry="11" />
@@ -302,19 +444,35 @@ function pick(id: string): void {
           external: node.d.external,
         }"
         :transform="`translate(${node.x} ${node.y})`"
+        :style="{
+          '--tone': `var(--bf-aurora-${node.tone})`,
+          '--bf-desync': `-${desyncMs(node.d.id)}ms`,
+        }"
         role="button"
         tabindex="0"
         :aria-label="node.d.name"
-        @click.stop="pick(node.d.id)"
+        @pointerdown="onNodeDown($event, node.d.id)"
+        @pointermove="onNodeMove($event, node.d.id)"
+        @pointerup="onNodeUp(node.d.id)"
+        @pointercancel="onNodeCancel(node.d.id)"
+        @click.stop
         @keydown.enter.prevent="emit('select', node.sel ? null : node.d.id)"
         @keydown.space.prevent="emit('select', node.sel ? null : node.d.id)"
       >
         <g class="enter" :style="{ '--i': i }">
-          <g class="zoom" :style="{ '--bf-desync': `-${desyncMs(node.d.id)}ms` }">
-            <circle class="halo" r="27" :fill="`url(#${glowId})`" />
+          <g class="zoom">
+            <circle class="halo" r="30" :fill="`url(#${uid}-g${node.tone})`" />
             <circle v-if="node.d.online" class="pulse" r="11" />
-            <circle class="ring" r="15" />
-            <circle v-if="node.d.exit_node" class="exit-ring" r="20" />
+            <circle class="orbit" r="19" />
+            <g v-if="node.sel" class="reticle" aria-hidden="true">
+              <circle class="ret-spin" r="24" />
+              <circle class="ret-counter" r="28" />
+              <line x1="-34" y1="0" x2="-26" y2="0" />
+              <line x1="26" y1="0" x2="34" y2="0" />
+              <line x1="0" y1="-34" x2="0" y2="-26" />
+              <line x1="0" y1="26" x2="0" y2="34" />
+            </g>
+            <circle class="ring" r="14" />
             <polygon v-if="node.d.tags.length" class="core" :points="HEX" />
             <circle v-else class="core" r="9.5" />
             <circle class="led" r="2.6" />
@@ -333,8 +491,10 @@ function pick(id: string): void {
     <div class="legend" aria-hidden="true">
       <span><i class="swatch line-out" />{{ t('tailnet.legendOut') }}</span>
       <span><i class="swatch line-in" />{{ t('tailnet.legendIn') }}</span>
-      <span><i class="swatch shape-hex" />{{ t('tailnet.legendTagged') }}</span>
-      <span><i class="swatch shape-orbit" />{{ t('tailnet.internet') }}</span>
+      <span><i class="swatch dot t2" />{{ t('tailnet.legendTagged') }}</span>
+      <span><i class="swatch dot t5" />{{ t('tailnet.exitNode') }}</span>
+      <span><i class="swatch dot t4" />{{ t('tailnet.external') }}</span>
+      <span><i class="swatch orbit-sw" />{{ t('tailnet.internet') }}</span>
     </div>
   </div>
 </template>
@@ -345,19 +505,21 @@ function pick(id: string): void {
   overflow: hidden;
   border: 1px solid var(--bf-line);
   border-radius: var(--bf-radius-card);
-  background:
-    radial-gradient(
-      ellipse at 50% 42%,
-      color-mix(in srgb, var(--bf-aurora-3) 5%, transparent),
-      transparent 62%
-    ),
-    var(--bf-bg-deep);
+  background: var(--bf-bg-deep);
+  aspect-ratio: 1000 / 620;
+}
+@media (min-width: 960px) {
+  .map {
+    aspect-ratio: auto;
+    height: 100%;
+  }
 }
 svg {
-  position: relative;
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 1000 / 620;
+  height: 100%;
+  display: block;
   touch-action: none;
   cursor: grab;
 }
@@ -365,59 +527,64 @@ svg:active {
   cursor: grabbing;
 }
 
-.sweep {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: min(140%, 56rem);
-  aspect-ratio: 1;
-  border-radius: var(--bf-radius-pill);
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 300deg,
-    color-mix(in srgb, var(--bf-aurora-2) 6%, transparent) 345deg,
-    color-mix(in srgb, var(--bf-aurora-2) 14%, transparent) 359deg,
-    transparent 360deg
-  );
-  mask-image: radial-gradient(circle, var(--bf-ink-strong) 30%, transparent 72%);
-  animation: bf-rotate 18s linear infinite;
-  pointer-events: none;
+/* ── cyber mesh ── */
+.dot-a {
+  fill: color-mix(in srgb, var(--bf-ink-faint) 55%, transparent);
+}
+.dot-b {
+  fill: color-mix(in srgb, var(--bf-aurora-3) 30%, transparent);
+}
+.mesh-a {
+  animation: bf-mesh-drift 64s linear infinite;
+  --mesh-dx: 26px;
+  --mesh-dy: -26px;
+}
+.mesh-b {
+  animation: bf-mesh-drift 90s linear infinite;
+  --mesh-dx: -74px;
+  --mesh-dy: 74px;
+}
+.vig-in {
+  stop-color: var(--bf-aurora-3);
+  stop-opacity: 0.06;
+}
+.vig-out {
+  stop-color: var(--bf-aurora-3);
+  stop-opacity: 0;
 }
 
-.polar circle,
-.polar line {
-  fill: none;
-  stroke: var(--bf-line);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-.polar line {
-  stroke-dasharray: 1 7;
-}
-
+/* ── links ── */
 .edge {
   fill: none;
-  stroke: var(--bf-line-strong);
+  stroke: color-mix(in srgb, var(--bf-ink-muted) 34%, transparent);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1;
-  animation: bf-draw var(--bf-dur-800) var(--bf-ease-spring) both;
   transition: opacity var(--bf-dur-300);
 }
-.edge.dim {
-  opacity: 0.14;
+.edge-flow {
+  fill: none;
+  stroke: color-mix(in srgb, var(--bf-aurora-3) 60%, transparent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 2 14;
+  vector-effect: non-scaling-stroke;
+  animation: bf-flow 2.6s linear infinite;
+  animation-delay: var(--fd, 0s);
+  opacity: 0.55;
+  transition: opacity var(--bf-dur-300);
 }
-.picking .edge:not(.dim) {
-  stroke: color-mix(in srgb, var(--bf-ink-muted) 55%, transparent);
+.edge.dim,
+.edge-flow.dim {
+  opacity: 0.06;
 }
 
 .flow {
   fill: none;
-  stroke-width: 1.6;
+  stroke-width: 1.7;
   stroke-dasharray: 7 9;
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  animation: bf-flow 1.2s linear infinite;
+  animation: bf-flow 1.1s linear infinite;
 }
 .flow.out {
   stroke: var(--bf-aurora-2);
@@ -426,13 +593,14 @@ svg:active {
   stroke: var(--bf-aurora-4);
 }
 
+/* ── nodes ── */
 .node {
   cursor: pointer;
   outline: none;
   transition: opacity var(--bf-dur-300);
 }
 .node.dim {
-  opacity: 0.15;
+  opacity: 0.14;
 }
 .node .enter {
   animation: bf-pop-in var(--bf-dur-500) var(--bf-ease-bounce) both;
@@ -443,22 +611,17 @@ svg:active {
 }
 .node:hover .zoom,
 .node:focus-visible .zoom {
-  transform: scale(1.12);
-}
-.node:focus-visible .ring {
-  stroke: var(--bf-brand);
+  transform: scale(1.1);
 }
 
-.glow-in {
-  stop-color: var(--bf-aurora-3);
-  stop-opacity: 0.22;
-}
-.glow-out {
-  stop-color: var(--bf-aurora-3);
-  stop-opacity: 0;
+.halo {
+  transform-origin: 0 0;
+  animation: bf-breathe 5.4s ease-in-out infinite;
+  animation-delay: var(--bf-desync, 0ms);
 }
 .offline .halo {
-  opacity: 0.25;
+  opacity: 0.15;
+  animation: none;
 }
 
 .pulse {
@@ -470,33 +633,64 @@ svg:active {
   animation-delay: var(--bf-desync, 0ms);
 }
 
+.orbit {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tone, var(--bf-aurora-3)) 50%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 9;
+  transform-origin: 0 0;
+  animation: bf-rotate 30s linear infinite;
+  animation-delay: var(--bf-desync, 0ms);
+  opacity: 0.55;
+  transition: opacity var(--bf-dur-150);
+}
+.node:hover .orbit,
+.node.sel .orbit,
+.node:focus-visible .orbit {
+  opacity: 1;
+}
+.offline .orbit {
+  opacity: 0.25;
+}
+
+.reticle line {
+  stroke: var(--tone, var(--bf-aurora-2));
+  stroke-width: 1.2;
+}
+.ret-spin {
+  fill: none;
+  stroke: var(--tone, var(--bf-aurora-2));
+  stroke-width: 1;
+  stroke-dasharray: 5 6;
+  transform-origin: 0 0;
+  animation: bf-rotate 5s linear infinite;
+}
+.ret-counter {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tone, var(--bf-aurora-2)) 55%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 1 10;
+  transform-origin: 0 0;
+  animation: bf-rotate 9s linear infinite;
+  animation-direction: reverse;
+}
+
 .ring {
   fill: none;
   stroke: var(--bf-line-strong);
   stroke-width: 1;
   transition: stroke var(--bf-dur-150);
 }
-.node.sel .ring {
-  stroke: var(--bf-aurora-2);
-  stroke-dasharray: 4 5;
-  transform-origin: 0 0;
-  animation: bf-rotate 14s linear infinite;
-}
-.exit-ring {
-  fill: none;
-  stroke: var(--bf-aurora-5);
-  stroke-width: 1;
-  stroke-dasharray: 2 8;
-  opacity: 0.8;
+.node:hover .ring,
+.node.sel .ring,
+.node:focus-visible .ring {
+  stroke: var(--tone, var(--bf-aurora-2));
 }
 
 .core {
   fill: color-mix(in srgb, var(--bf-surface-raised) 92%, transparent);
-  stroke: var(--bf-ink-muted);
+  stroke: color-mix(in srgb, var(--tone, var(--bf-aurora-3)) 60%, var(--bf-ink-muted));
   stroke-width: 1.2;
-}
-.node.sel .core {
-  stroke: var(--bf-aurora-2);
 }
 .node.external .core {
   stroke-dasharray: 3 3;
@@ -527,8 +721,10 @@ svg:active {
   paint-order: stroke;
   stroke: var(--bf-bg-deep);
   stroke-width: 3px;
+  transition: fill var(--bf-dur-150);
 }
-.node.sel .label {
+.node.sel .label,
+.node:hover .label {
   fill: var(--bf-ink-strong);
 }
 .sub {
@@ -550,9 +746,12 @@ svg:active {
 .internet.dim {
   opacity: 0.15;
 }
+.internet .halo {
+  animation-duration: 7s;
+}
 .internet .orbit {
   fill: none;
-  stroke: var(--bf-ink-faint);
+  stroke: color-mix(in srgb, var(--bf-aurora-5) 45%, transparent);
   stroke-width: 1;
   stroke-dasharray: 3 6;
   transform-origin: 0 0;
@@ -572,6 +771,7 @@ svg:active {
   fill: var(--bf-ink-faint);
 }
 
+/* ── HUD chrome ── */
 .corner {
   position: absolute;
   width: 14px;
@@ -609,7 +809,8 @@ svg:active {
   left: 0.9rem;
   bottom: 0.7rem;
   display: flex;
-  gap: 0.9rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
   font-family: var(--bf-font-mono);
   font-size: 0.58rem;
   letter-spacing: 0.1em;
@@ -635,13 +836,21 @@ svg:active {
   height: 0;
   border-top: 2px dashed var(--bf-aurora-4);
 }
-.swatch.shape-hex {
-  width: 9px;
-  height: 9px;
-  border: 1px solid var(--bf-ink-muted);
-  rotate: 45deg;
+.swatch.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--bf-radius-pill);
 }
-.swatch.shape-orbit {
+.swatch.dot.t2 {
+  background: var(--bf-aurora-2);
+}
+.swatch.dot.t4 {
+  background: var(--bf-aurora-4);
+}
+.swatch.dot.t5 {
+  background: var(--bf-aurora-5);
+}
+.swatch.orbit-sw {
   width: 9px;
   height: 9px;
   border: 1px dashed var(--bf-ink-muted);
