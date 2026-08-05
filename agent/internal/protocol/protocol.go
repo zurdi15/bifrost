@@ -155,13 +155,13 @@ type SpeedtestResult struct {
 // Sequenced is any agent→hub data frame the transport numbers and buffers.
 type Sequenced interface{ SetSeq(seq uint64) }
 
-func (m *Metrics) SetSeq(seq uint64)        { m.Seq = seq }
-func (m *Fs) SetSeq(seq uint64)             { m.Seq = seq }
-func (m *ContainersFull) SetSeq(seq uint64) { m.Seq = seq }
-func (m *ContainerEvent) SetSeq(seq uint64) { m.Seq = seq }
-func (m *ContainerStats) SetSeq(seq uint64) { m.Seq = seq }
-func (m *Smart) SetSeq(seq uint64)          { m.Seq = seq }
-func (m *K8sDetected) SetSeq(seq uint64)    { m.Seq = seq }
+func (m *Metrics) SetSeq(seq uint64)         { m.Seq = seq }
+func (m *Fs) SetSeq(seq uint64)              { m.Seq = seq }
+func (m *ContainersFull) SetSeq(seq uint64)  { m.Seq = seq }
+func (m *ContainerEvent) SetSeq(seq uint64)  { m.Seq = seq }
+func (m *ContainerStats) SetSeq(seq uint64)  { m.Seq = seq }
+func (m *Smart) SetSeq(seq uint64)           { m.Seq = seq }
+func (m *K8sDetected) SetSeq(seq uint64)     { m.Seq = seq }
 func (m *SpeedtestResult) SetSeq(seq uint64) { m.Seq = seq }
 
 func NewHello(agentVersion, hostname, osName, arch string, bootTS int64, caps []string) Hello {
