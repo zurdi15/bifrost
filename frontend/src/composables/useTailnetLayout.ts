@@ -61,7 +61,7 @@ export interface Simulation {
 
 export function createSimulation(width: number, height: number): Simulation {
   const nodes = new Map<string, SimNode>();
-  let springs: Array<[SimNode, SimNode]> = [];
+  let springs: Array<[SimNode, SimNode, number]> = [];
   let w = width;
   let h = height;
   let alpha = 0;
@@ -103,8 +103,9 @@ export function createSimulation(width: number, height: number): Simulation {
         node.y = pin.y;
       }
     });
-    springs = [];
+    const pairsList: Array<[SimNode, SimNode]> = [];
     const seen = new Set<string>();
+    const degree = new Map<SimNode, number>();
     for (const [a, b] of links) {
       const na = nodes.get(a);
       const nb = nodes.get(b);
@@ -112,9 +113,20 @@ export function createSimulation(width: number, height: number): Simulation {
       const key = a < b ? `${a}|${b}` : `${b}|${a}`;
       if (!seen.has(key)) {
         seen.add(key);
-        springs.push([na, nb]);
+        pairsList.push([na, nb]);
+        degree.set(na, (degree.get(na) ?? 0) + 1);
+        degree.set(nb, (degree.get(nb) ?? 0) + 1);
       }
     }
+    // Dense nets must spread like sparse ones: weighting each spring by its
+    // lighter endpoint's degree caps the total pull on a node at roughly one
+    // spring's worth, so a meshy tailnet fills the canvas like the fleet star
+    // (whose springs all touch a degree-1 leaf and keep weight 1).
+    springs = pairsList.map(([na, nb]) => [
+      na,
+      nb,
+      1 / Math.min(degree.get(na)!, degree.get(nb)!),
+    ]);
     alpha = 1;
   }
 
@@ -207,12 +219,12 @@ export function createSimulation(width: number, height: number): Simulation {
       fx[i] += (w / 2 - a.x) * 0.028;
       fy[i] += (h / 2 - a.y) * 0.028;
     }
-    for (const [a, b] of springs) {
+    for (const [a, b, strength] of springs) {
       const i = index.get(a)!;
       const j = index.get(b)!;
       const vx = a.x - b.x;
       const vy = a.y - b.y;
-      const pull = Math.hypot(vx, vy) / k;
+      const pull = (Math.hypot(vx, vy) / k) * strength;
       fx[i] -= vx * pull;
       fy[i] -= vy * pull;
       fx[j] += vx * pull;

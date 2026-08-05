@@ -48,6 +48,21 @@ describe('computeLayout', () => {
     expect(layout.get('internet')).toEqual({ x: 500, y: 70 });
   });
 
+  it('spreads a dense mesh over the canvas instead of clumping at the center', () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `n${i}`);
+    const mesh: Array<[string, string]> = [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) mesh.push([ids[i], ids[j]]);
+    }
+    const layout = computeLayout(ids, mesh, 1000, 620);
+    const xs = [...layout.values()].map((p) => p.x);
+    const ys = [...layout.values()].map((p) => p.y);
+    // Degree-normalized springs: a full mesh claims most of the padded
+    // canvas (1000−128 × 620−128) just like a sparse star does.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan((1000 - 128) * 0.7);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan((620 - 128) * 0.7);
+  });
+
   it('handles a single node and an empty graph', () => {
     expect(computeLayout([], [], 1000, 620).size).toBe(0);
     const alone = computeLayout(['solo'], [], 1000, 620).get('solo');
