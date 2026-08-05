@@ -63,6 +63,7 @@ function measure(): void {
     bodyTop.value = Math.round(bodyEl.value.getBoundingClientRect().top + window.scrollY);
   }
 }
+const fontsReady = ref(false);
 onMounted(() => {
   window.addEventListener('resize', measure);
   // SPA navigation overlaps the entering and leaving views for a beat (the
@@ -70,6 +71,12 @@ onMounted(() => {
   // pushed down by the leaving page. Re-measure once the swap settles.
   requestAnimationFrame(measure);
   window.setTimeout(measure, 400);
+  // The map mounts once web fonts have landed too — their reflow is the last
+  // thing that nudges the layout under the constellation.
+  void document.fonts.ready.then(() => {
+    fontsReady.value = true;
+    void nextTick(measure);
+  });
 });
 onBeforeUnmount(() => window.removeEventListener('resize', measure));
 watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
@@ -166,7 +173,10 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
         :class="{ 'with-dossier': selectedDevice }"
         :style="{ '--body-top': `${bodyTop}px` }"
       >
+        <!-- Mount only after the viewport offset is measured: the map's first
+             layout is final, so entrances play over a still constellation. -->
         <TailnetMap
+          v-if="bodyTop > 0 && fontsReady"
           :devices="devices"
           :edges="edges"
           :internet="state.internet"

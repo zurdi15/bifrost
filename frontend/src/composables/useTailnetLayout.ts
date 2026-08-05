@@ -124,14 +124,19 @@ export function createSimulation(width: number, height: number): Simulation {
     if (width2 <= 0 || height2 <= 0) return;
     const sx = width2 / w;
     const sy = height2 / h;
+    // Minor changes (a widget popping into the topbar, a scrollbar) must not
+    // visibly nudge the constellation — keep positions, just update bounds.
+    const minor = sx > 0.97 && sx < 1.03 && sy > 0.97 && sy < 1.03;
     w = width2;
     h = height2;
     for (const node of nodes.values()) {
-      node.x *= sx;
-      node.y *= sy;
-      if (node.fx !== null && node.fy !== null) {
-        node.fx *= sx;
-        node.fy *= sy;
+      if (!minor) {
+        node.x *= sx;
+        node.y *= sy;
+        if (node.fx !== null && node.fy !== null) {
+          node.fx *= sx;
+          node.fy *= sy;
+        }
       }
       const pin = pinned[node.id];
       if (pin) {
@@ -140,7 +145,10 @@ export function createSimulation(width: number, height: number): Simulation {
         node.x = pin.x;
         node.y = pin.y;
       }
+      node.x = Math.min(w - PAD, Math.max(PAD, node.x));
+      node.y = Math.min(h - PAD, Math.max(PAD, node.y));
     }
+    if (minor) return;
     alpha = Math.max(alpha, 0.2);
   }
 

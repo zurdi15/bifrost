@@ -35,7 +35,13 @@ const world = ref({ w: 1000, h: 620 });
 const view = ref({ x: 0, y: 0, w: 1000, h: 620 });
 const sim = createSimulation(world.value.w, world.value.h);
 const positions = shallowRef<Map<string, XY>>(new Map());
+// Nothing renders until the container is measured: the first painted frame
+// is already the settled constellation (entrances play over a still sky).
 let measured = false;
+// While the entrance animations are still playing, container resizes (the
+// page measuring its own viewport offset, late chips wrapping the console)
+// re-settle instantly; only later ones (opening the dossier) glide.
+let bornAt = 0;
 let raf = 0;
 let nodeDrag: { id: string; cx: number; cy: number; moved: boolean } | null = null;
 
@@ -72,12 +78,8 @@ watch(
   fingerprint,
   () => {
     sim.setGraph(ids.value, links.value, pins());
-    if (!positions.value.size) {
-      // First paint: land a rough constellation instantly, then let the
-      // last few percent relax on screen.
-      sim.settle(160);
-      sim.reheat(0.1);
-    }
+    if (!measured) return; // the first ResizeObserver tick settles and paints
+    if (!positions.value.size) sim.settle();
     positions.value = sim.positions();
     ensureRunning();
   },
@@ -94,9 +96,10 @@ onMounted(() => {
     sim.resize(rect.width, rect.height, pins());
     if (!measured) {
       measured = true;
+      bornAt = performance.now();
       view.value = { x: 0, y: 0, w: rect.width, h: rect.height };
-      sim.settle(160);
-      sim.reheat(0.08);
+      sim.setGraph(ids.value, links.value, pins());
+      sim.settle();
     } else {
       const kx = rect.width / prev.w;
       const ky = rect.height / prev.h;
@@ -106,6 +109,9 @@ onMounted(() => {
         w: view.value.w * kx,
         h: view.value.h * ky,
       };
+      // Early resizes (viewport-offset measure, font reflow) freeze: the
+      // scaled equilibrium IS an equilibrium — re-annealing would teleport.
+      if (performance.now() - bornAt < 1600) sim.settle(0);
     }
     positions.value = sim.positions();
     ensureRunning();
@@ -435,21 +441,30 @@ function onNodeCancel(id: string): void {
         </g>
       </g>
 
-      <!-- Links: quiet base line + a slow shimmer of data motes on every
-           allowed pair; the web is alive even before you touch it. -->
+      <!-- Links: each base line draws itself in (staggered, overlapping);
+           the slow shimmer of data motes fades up once the web is drawn. -->
       <g class="edges">
-        <template v-for="(pair, pi) in pairs" :key="`${pair.a}|${pair.b}`">
-          <path class="edge" :class="{ dim: pairDim(pair) }" :d="curve(pair.a, pair.b)">
-            <title>{{ pairTitle(pair) }}</title>
-          </path>
-          <path
-            class="edge-flow"
-            :class="{ dim: pairDim(pair) }"
-            :d="curve(pair.a, pair.b)"
-            :style="{ '--fd': `${(pi % 9) * -0.35}s` }"
-            aria-hidden="true"
-          />
-        </template>
+        <path
+          v-for="(pair, pi) in pairs"
+          :key="`${pair.a}|${pair.b}`"
+          class="edge"
+          :class="{ dim: pairDim(pair) }"
+          :d="curve(pair.a, pair.b)"
+          :style="{ '--i': pi }"
+          pathLength="1"
+        >
+          <title>{{ pairTitle(pair) }}</title>
+        </path>
+      </g>
+      <g class="flows-idle" aria-hidden="true">
+        <path
+          v-for="(pair, pi) in pairs"
+          :key="`${pair.a}|${pair.b}`"
+          class="edge-flow"
+          :class="{ dim: pairDim(pair) }"
+          :d="curve(pair.a, pair.b)"
+          :style="{ '--fd': `${(pi % 9) * -0.35}s` }"
+        />
       </g>
 
       <!-- Focus flows: directed, cyan out of the selected node, violet in. -->
@@ -471,12 +486,14 @@ function onNodeCancel(id: string): void {
         :transform="`translate(${internetAt.x} ${internetAt.y})`"
         aria-hidden="true"
       >
-        <circle class="halo" r="34" :fill="`url(#${uid}-g5)`" />
-        <circle class="orbit" r="19" />
-        <circle class="globe" r="11" />
-        <ellipse class="meridian" rx="4.5" ry="11" />
-        <line class="equator" x1="-11" y1="0" x2="11" y2="0" />
-        <text class="label" y="38">{{ t('tailnet.internet') }}</text>
+        <g class="enter">
+          <circle class="halo" r="34" :fill="`url(#${uid}-g5)`" />
+          <circle class="orbit" r="19" />
+          <circle class="globe" r="11" />
+          <ellipse class="meridian" rx="4.5" ry="11" />
+          <line class="equator" x1="-11" y1="0" x2="11" y2="0" />
+          <text class="label" y="38">{{ t('tailnet.internet') }}</text>
+        </g>
       </g>
 
       <!-- Devices. Nested groups keep translate (attr), entrance (CSS) and
@@ -627,12 +644,22 @@ svg:active {
 }
 
 /* ── links ── */
+/* Draw-in: pathLength=1 dash — safe here because base edges do NOT use
+   non-scaling-stroke (that combination is what Chromium mis-dashes).
+   Staggered ~18ms per link, capped so a big mesh never drags. */
 .edge {
   fill: none;
   stroke: color-mix(in srgb, var(--bf-ink-muted) 34%, transparent);
   stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  animation: bf-draw var(--bf-dur-500) var(--bf-ease-spring) both;
+  animation-delay: calc(200ms + min(var(--i, 0), 40) * 18ms);
   transition: opacity var(--bf-dur-300);
+}
+/* The mote shimmer waits for the web to finish drawing, then fades up. */
+.flows-idle {
+  animation: bf-fade-in var(--bf-dur-500) both;
+  animation-delay: 1000ms;
 }
 .edge-flow {
   fill: none;
@@ -675,9 +702,12 @@ svg:active {
 .node.dim {
   opacity: 0.14;
 }
-.node .enter {
+/* Agile entrance: every node gets its own beat (~56ms), overlapping, with
+   a hard budget so a 50-device tailnet still assembles in under a second. */
+.node .enter,
+.internet .enter {
   animation: bf-pop-in var(--bf-dur-500) var(--bf-ease-bounce) both;
-  animation-delay: calc(min(var(--i, 0), 8) * var(--bf-stagger-step));
+  animation-delay: calc(min(var(--i, 0) * 1.4, 22) * var(--bf-stagger-step));
 }
 .node .zoom {
   transition: transform var(--bf-dur-150) var(--bf-ease-spring);
