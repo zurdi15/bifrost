@@ -21,6 +21,8 @@ services:
       - /etc/machine-id:/etc/machine-id:ro
       # Docker autodiscovery (phase 2):
       #- /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      bifrost.hide: true
 
     # SMART disk health (phase 4) — uncomment and list your disks:
     #cap_add: [SYS_RAWIO, SYS_ADMIN]

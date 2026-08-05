@@ -25,3 +25,5 @@ services:
       # a named volume, and create it on the host FIRST (otherwise Docker
       # makes a directory in its place):
       #- ./bookmarks.yml:/data/bookmarks.yml:ro
+    labels:
+      bifrost.hide: true
