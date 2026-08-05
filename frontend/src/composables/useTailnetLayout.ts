@@ -16,7 +16,9 @@ export interface XY {
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const PAD = 64;
-const MIN_DIST = 46;
+// Generous floor: node labels render at ~10px mono below each core, so
+// neighbors need real air for names to stay legible (phones especially).
+const MIN_DIST = 62;
 const FRICTION = 0.58;
 const ALPHA_DECAY = 0.968;
 const ALPHA_REST = 0.015;
@@ -176,7 +178,7 @@ export function createSimulation(width: number, height: number): Simulation {
     // Classic Fruchterman–Reingold displacements (the balance that spreads a
     // homelab-sized graph nicely), smoothed through a velocity blend so live
     // interaction reads as motion instead of teleports.
-    const k = 0.9 * Math.sqrt((w * h) / n);
+    const k = 1.02 * Math.sqrt((w * h) / n);
     const fx = new Float64Array(n);
     const fy = new Float64Array(n);
     const index = new Map<SimNode, number>();

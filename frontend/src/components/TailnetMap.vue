@@ -116,11 +116,23 @@ onMounted(() => {
     positions.value = sim.positions();
     ensureRunning();
   });
-  if (wrap.value) resizeObserver.observe(wrap.value);
+  if (wrap.value) {
+    resizeObserver.observe(wrap.value);
+    wrap.value.addEventListener('pointerdown', onCapturedDown, true);
+    wrap.value.addEventListener('pointermove', onCapturedMove, true);
+    wrap.value.addEventListener('pointerup', onCapturedUp, true);
+    wrap.value.addEventListener('pointercancel', onCapturedUp, true);
+  }
 });
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   if (raf) cancelAnimationFrame(raf);
+  if (wrap.value) {
+    wrap.value.removeEventListener('pointerdown', onCapturedDown, true);
+    wrap.value.removeEventListener('pointermove', onCapturedMove, true);
+    wrap.value.removeEventListener('pointerup', onCapturedUp, true);
+    wrap.value.removeEventListener('pointercancel', onCapturedUp, true);
+  }
 });
 
 // ── graph view-models ────────────────────────────────────────────────────
@@ -259,12 +271,76 @@ function onWheel(event: WheelEvent): void {
 let panFrom: { x: number; y: number } | null = null;
 let panMoved = false;
 
+// ── pinch zoom (touch) ───────────────────────────────────────────────────
+// Pointers are tracked in the CAPTURE phase on the wrapper, so a finger
+// landing on a node still counts: the second finger cancels any drag and
+// the constellation stays glued to both fingertips.
+let pinching = false;
+const activePointers = new Map<number, { x: number; y: number }>();
+let pinchStart: {
+  dist: number;
+  view: { x: number; y: number; w: number; h: number };
+  mid: { x: number; y: number };
+} | null = null;
+
+function onCapturedDown(event: PointerEvent): void {
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (activePointers.size !== 2) return;
+  pinching = true;
+  panFrom = null;
+  panMoved = true; // the click that may follow must not deselect
+  if (nodeDrag) {
+    sim.release(nodeDrag.id);
+    nodeDrag = null;
+    ensureRunning();
+  }
+  const [a, b] = [...activePointers.values()];
+  pinchStart = {
+    dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+    view: { ...view.value },
+    mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+  };
+}
+function onCapturedMove(event: PointerEvent): void {
+  if (!activePointers.has(event.pointerId)) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (!pinching || !pinchStart || activePointers.size < 2) return;
+  const rect = svg.value?.getBoundingClientRect();
+  if (!rect || rect.width === 0) return;
+  const [a, b] = [...activePointers.values()];
+  const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const factor = pinchStart.dist / dist;
+  const w = Math.min(world.value.w * 1.5, Math.max(world.value.w / 6, pinchStart.view.w * factor));
+  const h = (w / world.value.w) * world.value.h;
+  // The world point that sat under the starting midpoint follows the
+  // current midpoint — pinch and two-finger pan in one gesture.
+  const anchor = {
+    x:
+      pinchStart.view.x +
+      ((pinchStart.mid.x - rect.left) / rect.width) * pinchStart.view.w,
+    y:
+      pinchStart.view.y +
+      ((pinchStart.mid.y - rect.top) / rect.height) * pinchStart.view.h,
+  };
+  const cx = ((a.x + b.x) / 2 - rect.left) / rect.width;
+  const cy = ((a.y + b.y) / 2 - rect.top) / rect.height;
+  clampView(anchor.x - cx * w, anchor.y - cy * h, w, h);
+}
+function onCapturedUp(event: PointerEvent): void {
+  activePointers.delete(event.pointerId);
+  if (pinching && activePointers.size < 2) {
+    pinching = false;
+    pinchStart = null;
+  }
+}
+
 function onPointerDown(event: PointerEvent): void {
+  if (pinching) return;
   panFrom = { x: event.clientX, y: event.clientY };
   panMoved = false;
 }
 function onPointerMove(event: PointerEvent): void {
-  if (!panFrom) return;
+  if (pinching || !panFrom) return;
   const rect = svg.value?.getBoundingClientRect();
   if (!rect || rect.width === 0) return;
   const dx = ((event.clientX - panFrom.x) / rect.width) * view.value.w;
@@ -287,12 +363,13 @@ function onBackgroundClick(): void {
 
 // ── node dragging (physics) ──────────────────────────────────────────────
 function onNodeDown(event: PointerEvent, id: string): void {
+  if (pinching) return;
   event.stopPropagation();
   (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
   nodeDrag = { id, cx: event.clientX, cy: event.clientY, moved: false };
 }
 function onNodeMove(event: PointerEvent, id: string): void {
-  if (!nodeDrag || nodeDrag.id !== id) return;
+  if (pinching || !nodeDrag || nodeDrag.id !== id) return;
   if (
     !nodeDrag.moved &&
     Math.abs(event.clientX - nodeDrag.cx) + Math.abs(event.clientY - nodeDrag.cy) < 4
