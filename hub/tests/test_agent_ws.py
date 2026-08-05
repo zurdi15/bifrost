@@ -120,8 +120,9 @@ def test_metrics_ingest_and_query(client):
             time.sleep(0.02)
         assert node["live"]["samples"]["cpu.pct"] == 50.0
 
-        # Batched writer lands both rows (fast flush interval from conftest).
-        deadline = time.time() + 3
+        # Batched writer lands both rows (fast flush interval from conftest;
+        # generous deadline — starved CI runners stall the flush for seconds).
+        deadline = time.time() + 12
         series = {}
         while time.time() < deadline:
             series = client.get(
@@ -143,7 +144,7 @@ def test_duplicate_seq_ignored(client):
         ws.send_text(metrics_frame(1, now, {"cpu.pct": 10.0}))
         ws.send_text(metrics_frame(1, now + 1, {"cpu.pct": 99.0}))  # replayed seq
 
-        deadline = time.time() + 3
+        deadline = time.time() + 12
         while time.time() < deadline:
             series = client.get(
                 "/api/v1/metrics",

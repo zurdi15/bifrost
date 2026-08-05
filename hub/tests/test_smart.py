@@ -77,6 +77,6 @@ def test_disk_temp_metric_recorded(client):
             return series or None
 
         # Generous deadline: the flush cadence is 0.05s in tests, but starved
-        # CI runners have blown through 3s before.
-        series = wait_for(query, timeout=10.0)
+        # CI runners have blown through 10s before.
+        series = wait_for(query, timeout=20.0)
         assert series[0][1] == 38.0
