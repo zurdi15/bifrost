@@ -201,24 +201,16 @@ function portLabel(port: string): string {
   padding: 0.9rem 1rem 1.1rem;
   border: 1px solid var(--bf-line-strong);
   border-radius: var(--bf-radius-card);
-  /* Glass over the constellation — it floats above the map, never beside it. */
-  background: color-mix(in srgb, var(--bf-surface) 80%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  backdrop-filter: blur(16px) saturate(1.3);
+  /* Glass over the constellation — faked with a near-opaque surface, never
+     a real backdrop blur: filtering the animated map re-rasterizes the
+     backdrop every frame and re-layerizes the whole screen on mount/unmount,
+     which flashed on phones first and then on desktop clicks too. */
+  background: color-mix(in srgb, var(--bf-surface) 96%, transparent);
   box-shadow: var(--bf-shadow-lift);
+  contain: layout paint;
   max-height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
-}
-/* Phones skip the live blur: compositing it over the animated map is what
-   made the whole screen flicker, worst when tearing the layer down on
-   close. A near-opaque surface reads the same at this size. */
-@media (max-width: 720px) {
-  .dossier {
-    background: color-mix(in srgb, var(--bf-surface) 96%, transparent);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
 }
 .head {
   display: flex;

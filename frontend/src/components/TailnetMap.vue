@@ -676,6 +676,8 @@ function onNodeCancel(id: string): void {
   background: var(--bf-bg-deep);
   height: 100%;
   touch-action: none;
+  /* Nothing in here invalidates the page around it, and vice versa. */
+  contain: layout paint style;
 }
 svg {
   position: absolute;
@@ -717,6 +719,15 @@ svg:active {
   --mesh-dx: -560px;
   --mesh-dy: 308px;
 }
+/* Each drifting plane gets its own compositor layer: the loop then moves a
+   cached (tiled) texture instead of repainting the full canvas every frame —
+   this was the largest standing paint load of the view. */
+.mesh-a,
+.mesh-b,
+.wave-a,
+.wave-b {
+  will-change: transform;
+}
 .wave-stop-a {
   stop-color: var(--bf-aurora-2);
 }
@@ -754,10 +765,13 @@ svg:active {
   animation-delay: calc(200ms + min(var(--i, 0), 40) * 18ms);
   transition: opacity var(--bf-dur-300);
 }
-/* The mote shimmer waits for the web to finish drawing, then fades up. */
+/* The mote shimmer waits for the web to finish drawing, then fades up.
+   Own layer: dashoffset motion is unpaintable by the compositor, so isolate
+   its per-frame repaints to this plane — nodes and labels stay cached. */
 .flows-idle {
   animation: bf-fade-in var(--bf-dur-500) both;
   animation-delay: 1000ms;
+  will-change: transform;
 }
 .edge-flow {
   fill: none;
@@ -775,7 +789,22 @@ svg:active {
 .edge-flow.dim {
   opacity: 0.06;
 }
+/* Focus mode: while a node is selected the ambient holds its breath — the
+   idle shimmer pauses frame-exact (resumes seamlessly on deselect) and only
+   the selected node's directed flows keep moving. */
+.picking .edge-flow {
+  animation-play-state: paused;
+}
+.picking .mesh-a,
+.picking .mesh-b,
+.picking .wave-a,
+.picking .wave-b {
+  animation-play-state: paused;
+}
 
+.flows {
+  will-change: transform;
+}
 .flow {
   fill: none;
   stroke-width: 1.7;
@@ -815,6 +844,16 @@ svg:active {
   transform: scale(1.1);
 }
 
+/* Every perpetually-animating satellite is promoted to its own tiny layer:
+   breathing and orbiting become composited transforms, so a resting
+   constellation paints nothing at all. */
+.halo,
+.pulse,
+.orbit,
+.ret-spin,
+.ret-counter {
+  will-change: transform;
+}
 .halo {
   transform-origin: 0 0;
   animation: bf-breathe 5.4s ease-in-out infinite;
@@ -823,6 +862,7 @@ svg:active {
 .offline .halo {
   opacity: 0.15;
   animation: none;
+  will-change: auto;
 }
 
 .pulse {
@@ -832,6 +872,18 @@ svg:active {
   transform-origin: 0 0;
   animation: bf-pulse 2.6s ease-out infinite;
   animation-delay: var(--bf-desync, 0ms);
+}
+/* Dimmed nodes sleep: at 14% opacity their liveness reads as noise anyway,
+   and pausing it keeps the selection state nearly paint-free. */
+.node.dim .halo,
+.node.dim .orbit,
+.internet.dim .halo,
+.internet.dim .orbit {
+  animation-play-state: paused;
+}
+.node.dim .pulse {
+  animation: none;
+  visibility: hidden;
 }
 
 .orbit {
@@ -1064,13 +1116,21 @@ svg:active {
   }
   /* Full-canvas animations repaint the entire SVG every frame — on phone
      GPUs that reads as whole-screen render flicker. The backdrop and the
-     mote shimmer hold still on small screens; nodes keep their life. */
+     mote shimmer hold still on small screens; nodes keep their life. With
+     nothing moving there is nothing to promote either — reclaim the layers. */
   .mesh-a,
   .mesh-b,
   .wave-a,
   .wave-b,
   .edge-flow {
     animation: none;
+  }
+  .mesh-a,
+  .mesh-b,
+  .wave-a,
+  .wave-b,
+  .flows-idle {
+    will-change: auto;
   }
 }
 </style>
