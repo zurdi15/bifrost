@@ -52,9 +52,8 @@ async function resync(): Promise<void> {
 // ── fleet view ──
 // The bifrost network is always chartable: the hub and every node it knows,
 // wired the way they actually connect — agents dial the hub's WebSocket, the
-// hub dials endpoint checks. Without a (non-empty) tailnet it is the only
-// view; with one, tabs switch between both nets, deep-linked via
-// #bifrost-net (#fleet, its old name, still resolves).
+// hub dials endpoint checks. It is the default view (and without a non-empty
+// tailnet, the only one); the tailnet deep-links via #tailnet.
 const HUB_ID = 'bifrost-hub';
 const route = useRoute();
 const router = useRouter();
@@ -66,9 +65,10 @@ const fleetForced = computed(
 );
 const showTabs = computed(() => loaded.value && state.value !== null && !fleetForced.value);
 const tab = computed<'tailnet' | 'fleet'>({
-  get: () =>
-    route.hash === '#bifrost-net' || route.hash === '#fleet' ? 'fleet' : 'tailnet',
-  set: (value) => void router.replace({ hash: value === 'fleet' ? '#bifrost-net' : '' }),
+  // Anything else (no hash, or the retired #bifrost-net/#fleet anchors)
+  // lands on the default bifrost net.
+  get: () => (route.hash === '#tailnet' ? 'tailnet' : 'fleet'),
+  set: (value) => void router.replace({ hash: value === 'tailnet' ? '#tailnet' : '' }),
 });
 const fleetMode = computed(
   () => fleetForced.value || (showTabs.value && tab.value === 'fleet'),
