@@ -97,6 +97,8 @@
   },
   "tailnet": {
     "title": "Tailnet",
+    "tabTailnet": "Tailnet",
+    "tabFleet": "Red bifrost",
     "fleetChip": "red bifrost",
     "fleetTip": "Sin tailnet conectado — esto es la propia red de bifrost: agentes marcando al hub, el hub sondeando endpoints. Define BIFROST_TAILSCALE_API_KEY en el hub para mapear tu tailnet con reachability de ACL.",
     "empty": "Nada que mapear todavía.",

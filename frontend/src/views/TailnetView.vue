@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { mdiRefresh } from '@mdi/js';
 
 import {
@@ -48,18 +49,58 @@ async function resync(): Promise<void> {
   }
 }
 
-// ── fleet fallback ──
-// No tailnet (or an empty one) still deserves a constellation: the hub and
-// every bifrost node it knows, wired the way they actually connect — agents
-// dial the hub's WebSocket, the hub dials endpoint checks. The section is
-// useful from the first agent, and a hint chip sells the tailnet upgrade.
+// ── fleet view ──
+// The bifrost network is always chartable: the hub and every node it knows,
+// wired the way they actually connect — agents dial the hub's WebSocket, the
+// hub dials endpoint checks. Without a (non-empty) tailnet it is the only
+// view; with one, tabs switch between both nets, deep-linked via #fleet.
 const HUB_ID = 'bifrost-hub';
-const fleetMode = computed(
+const route = useRoute();
+const router = useRouter();
+const fleetForced = computed(
   () =>
     loaded.value &&
     state.value !== null &&
     (!state.value.configured || state.value.devices.length === 0),
 );
+const showTabs = computed(() => loaded.value && state.value !== null && !fleetForced.value);
+const tab = computed<'tailnet' | 'fleet'>({
+  get: () => (route.hash === '#fleet' ? 'fleet' : 'tailnet'),
+  set: (value) => void router.replace({ hash: value === 'fleet' ? '#fleet' : '' }),
+});
+const fleetMode = computed(
+  () => fleetForced.value || (showTabs.value && tab.value === 'fleet'),
+);
+// Different nets, different citizens — a selection never survives the switch.
+watch(tab, () => {
+  selected.value = null;
+});
+
+// Sliding ink underline, same instrument as the dashboard tabs.
+const tailnetTab = ref<HTMLButtonElement | null>(null);
+const fleetTab = ref<HTMLButtonElement | null>(null);
+const tabsEl = ref<HTMLElement | null>(null);
+const ink = ref({ x: 0, w: 0 });
+function placeInk(): void {
+  const el = (tab.value === 'fleet' ? fleetTab : tailnetTab).value;
+  if (el) ink.value = { x: el.offsetLeft, w: el.offsetWidth };
+}
+watch(tab, placeInk, { flush: 'post' });
+let inkObserver: ResizeObserver | null = null;
+watch(
+  showTabs,
+  async (visible) => {
+    if (!visible) return;
+    await nextTick();
+    placeInk();
+    inkObserver ??= new ResizeObserver(placeInk);
+    for (const el of [tailnetTab.value, fleetTab.value, tabsEl.value]) {
+      if (el) inkObserver.observe(el);
+    }
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => inkObserver?.disconnect());
 
 function fleetDevice(partial: Partial<TailnetDevice> & { id: string; name: string }): TailnetDevice {
   return {
@@ -165,18 +206,51 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
           {{ t('tailnet.demo') }}
         </BfChip>
         <BfChip
-          v-if="fleetMode"
+          v-if="fleetForced"
           tone="unknown"
           class="bf-tip-bottom"
           :data-bf-tip="t('tailnet.fleetTip')"
         >
           {{ t('tailnet.fleetChip') }}
         </BfChip>
-        <BfChip v-else-if="state?.configured && state.tailnet" tone="brand" mono>
+        <BfChip v-else-if="!fleetMode && state?.configured && state.tailnet" tone="brand" mono>
           {{ state.tailnet }}
         </BfChip>
       </span>
     </header>
+
+    <!-- Both nets on tap: the tailnet and bifrost's own agent web. -->
+    <nav
+      v-if="showTabs"
+      ref="tabsEl"
+      class="tabs"
+      role="tablist"
+      :style="{ '--ink-x': ink.x, '--ink-w': ink.w }"
+    >
+      <button
+        ref="tailnetTab"
+        class="tab"
+        :class="{ active: tab === 'tailnet' }"
+        role="tab"
+        :aria-selected="tab === 'tailnet'"
+        @click="tab = 'tailnet'"
+      >
+        {{ t('tailnet.tabTailnet') }}
+        <span class="tab-count bf-metric">{{ state?.devices.length ?? 0 }}</span>
+      </button>
+      <button
+        ref="fleetTab"
+        class="tab"
+        :class="{ active: tab === 'fleet' }"
+        role="tab"
+        :aria-selected="tab === 'fleet'"
+        @click="tab = 'fleet'"
+      >
+        {{ t('tailnet.tabFleet') }}
+        <span class="tab-count bf-metric">{{ fleetDevices.length }}</span>
+      </button>
+      <span class="tab-ink" aria-hidden="true" />
+    </nav>
 
     <template v-if="loaded && state">
       <!-- Instrument console: counters, scan filter, re-sync. -->
@@ -287,6 +361,55 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
   gap: 0.4rem;
   margin-left: auto;
   flex-wrap: wrap;
+}
+
+.tabs {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0 0 0.8rem;
+  border-bottom: 1px solid var(--bf-line);
+}
+.tab {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.35rem 0.85rem 0.55rem;
+  border: none;
+  background: transparent;
+  color: var(--bf-ink-muted);
+  cursor: pointer;
+  transition: color var(--bf-dur-150);
+}
+.tab:hover {
+  color: var(--bf-ink);
+}
+.tab.active {
+  color: var(--bf-brand);
+}
+.tab-ink {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 1px;
+  height: 2px;
+  background: var(--bf-brand);
+  transform: translateX(calc(var(--ink-x) * 1px)) scaleX(var(--ink-w));
+  transform-origin: 0 50%;
+  transition: transform var(--bf-dur-300) var(--bf-ease-spring);
+}
+.tab-count {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--bf-ink-muted);
+  margin-left: 0.15rem;
+}
+.tab.active .tab-count {
+  color: var(--bf-brand);
+  opacity: 0.75;
 }
 .empty {
   color: var(--bf-ink-muted);

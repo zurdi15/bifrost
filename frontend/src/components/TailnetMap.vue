@@ -77,12 +77,19 @@ const fingerprint = computed(
       .sort()
       .join(),
 );
+let knownIds = new Set<string>();
 watch(
   fingerprint,
   () => {
+    const next = new Set(ids.value);
+    const sharesNodes = [...next].some((id) => id !== INTERNET_ID && knownIds.has(id));
+    knownIds = next;
     sim.setGraph(ids.value, links.value, pins());
     if (!measured) return; // the first ResizeObserver tick settles and paints
-    if (!positions.value.size) sim.settle();
+    // A wholesale swap (switching tailnet ⇄ fleet) settles offline and lets
+    // the entrance choreography present the new net; incremental changes
+    // (a device joining) animate live.
+    if (!positions.value.size || !sharesNodes) sim.settle();
     positions.value = sim.positions();
     ensureRunning();
   },

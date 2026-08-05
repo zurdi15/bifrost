@@ -97,6 +97,8 @@
   },
   "tailnet": {
     "title": "Tailnet",
+    "tabTailnet": "Tailnet",
+    "tabFleet": "Bifrost net",
     "fleetChip": "bifrost fleet",
     "fleetTip": "No tailnet connected — this is the bifrost network itself: agents dialing the hub, the hub probing endpoints. Set BIFROST_TAILSCALE_API_KEY on the hub to chart your tailnet with ACL reachability instead.",
     "empty": "Nothing to chart yet.",
