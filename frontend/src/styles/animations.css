@@ -196,8 +196,12 @@
   animation: bf-rise-in var(--bf-dur-300) var(--bf-ease-spring) both;
 }
 .bf-view-leave-active {
-  animation: none;
-  transition: none;
+  /* !important: a leaving view must vanish instantly even when its root
+     carries its own transitions (higher-specificity scoped rules — e.g. the
+     dashboard's rail-column glide) — otherwise Vue waits the transition out
+     and the next view measures its layout under the leaving one. */
+  animation: none !important;
+  transition: none !important;
 }
 .bf-view-leave-to {
   opacity: 0;

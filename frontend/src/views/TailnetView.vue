@@ -65,6 +65,11 @@ function measure(): void {
 }
 onMounted(() => {
   window.addEventListener('resize', measure);
+  // SPA navigation overlaps the entering and leaving views for a beat (the
+  // bf-view transition has no out-in mode), so an early measure reads a top
+  // pushed down by the leaving page. Re-measure once the swap settles.
+  requestAnimationFrame(measure);
+  window.setTimeout(measure, 400);
 });
 onBeforeUnmount(() => window.removeEventListener('resize', measure));
 watch([loaded, () => state.value?.configured], () => void nextTick(measure), {

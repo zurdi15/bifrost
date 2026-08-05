@@ -88,7 +88,7 @@ function alignRail(): void {
   if (!serviceCard || !railCard) return;
   const delta = docTop(serviceCard) - docTop(railCard);
   if (Math.abs(delta) < 1) return;
-  railNudge.value = Math.max(16, railNudge.value + delta);
+  railNudge.value = Math.max(10, railNudge.value + delta);
 }
 
 const ui = useUiStore();
@@ -537,26 +537,31 @@ const railHidden = computed(() => tab.value !== 'services');
     display: none;
   }
 }
-/* NODES rides just above its cards, group-heading style; the measured
-   --rail-nudge (see alignRail) drops the pair so the first machine card is
-   level with the first service card. */
+/* NODES sits centered on the toolbar row (same 1.65rem line as the pills
+   and the search); the measured --rail-nudge (see alignRail) then drops the
+   card stack so the first machine card is level with the first service
+   card, whatever the group mode renders above the grid. */
 .rail-title {
-  margin: 1rem 0 0.6rem;
+  display: flex;
+  align-items: center;
+  height: 1.65rem;
+  margin: 1rem 0 0;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--bf-ink-muted);
 }
-@media (min-width: 1100px) {
-  .rail-title {
-    margin-top: var(--rail-nudge, 1rem);
-  }
-}
 .rail-stack {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+@media (min-width: 1100px) {
+  .rail-stack {
+    margin-top: var(--rail-nudge, 0.6rem);
+  }
 }
 @media (max-width: 1099px) {
   .rail-title {
