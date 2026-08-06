@@ -76,11 +76,17 @@ const usage = computed(() => {
   return parts.join(' · ');
 });
 
-// ── front panel (node-UI cards) ────────────────────────────────────────────
-// The rack lights and the chassis glow are wired to the node's real
-// telemetry: LED flicker rate follows CPU, border neon follows network I/O.
+// ── front panel (machine cards) ────────────────────────────────────────────
+// Nodes with a UI and endpoints are both machines: front-panel chrome, and a
+// home in the dashboard rail rather than the services grid. The rack lights
+// and the chassis glow are wired to the node's real telemetry when an agent
+// reports any (endpoints just idle): LED flicker follows CPU, neon follows
+// network I/O.
+const isMachine = computed(
+  () => props.container.source === 'node' || props.container.source === 'endpoint',
+);
 const nodeSamples = computed<Record<string, number>>(() =>
-  props.container.source === 'node'
+  isMachine.value
     ? (live.nodeList.find((n) => n.uuid === props.container.node_uuid)?.live?.samples ?? {})
     : {},
 );
@@ -90,7 +96,7 @@ const rackNetBps = computed(() =>
     .reduce((sum, [, value]) => sum + value, 0),
 );
 const rackStyle = computed(() => {
-  if (props.container.source !== 'node') return undefined;
+  if (!isMachine.value) return undefined;
   const cpu = nodeSamples.value['cpu.pct'];
   // Idle ticks lazily (×1.6), a pegged CPU gets frantic (×0.35).
   const rate = cpu === undefined ? 1 : 1.6 - (Math.min(cpu, 100) / 100) * 1.25;
@@ -174,7 +180,7 @@ async function save(): Promise<void> {
       class="container-card"
       :class="{
         'is-down': status === 'offline' || status === 'disabled',
-        'node-ui': container.source === 'node',
+        'node-ui': isMachine,
       }"
       :style="rackStyle"
     >
@@ -232,7 +238,7 @@ async function save(): Promise<void> {
             />
             <template v-else>{{ container.meta.icon }}</template>
           </span>
-          <span v-else-if="container.source === 'node'" class="icon node-glyph">
+          <span v-else-if="isMachine" class="icon node-glyph">
             <BfIcon :path="mdiServer" :size="20" />
           </span>
           <span v-else-if="autoIcon && !autoIconBroken" class="icon">
@@ -256,7 +262,7 @@ async function save(): Promise<void> {
         <!-- Machines get a front panel: a strip of activity LEDs where the
              app footer would be, blinking to the node's real telemetry. -->
         <span
-          v-if="container.source === 'node'"
+          v-if="isMachine"
           class="rack"
           :data-bf-tip="rackTip || undefined"
           aria-hidden="true"

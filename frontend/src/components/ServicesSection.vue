@@ -34,9 +34,10 @@ const filtered = computed(() =>
     (c) =>
       (!dash.nodeFilter || c.node_uuid === dash.nodeFilter) &&
       matchesQuery(c) &&
-      // Node-UI cards are machines, not services: they live in the
-      // dashboard's own rail, never inside the service grids.
-      c.source !== 'node',
+      // Machine cards (node UIs and endpoints — an endpoint is a node too)
+      // live in the dashboard's own rail, never inside the service grids.
+      c.source !== 'node' &&
+      c.source !== 'endpoint',
   ),
 );
 

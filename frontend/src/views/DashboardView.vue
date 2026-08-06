@@ -94,10 +94,16 @@ function alignRail(): void {
 const ui = useUiStore();
 const live = useLiveStore();
 const dash = useDashboardStore();
-// Machines (node-UI cards) live in their own right-hand rail; every count
-// and grid below is services only.
-const nodeCards = computed(() => live.containerList.filter((c) => c.source === 'node'));
-const gridContainers = computed(() => live.containerList.filter((c) => c.source !== 'node'));
+// Machines live in their own right-hand rail — node-UI cards AND endpoint
+// cards (an endpoint is a node too); every count and grid below is services
+// only.
+const MACHINE_SOURCES = new Set(['node', 'endpoint']);
+const nodeCards = computed(() =>
+  live.containerList.filter((c) => MACHINE_SOURCES.has(c.source ?? '')),
+);
+const gridContainers = computed(() =>
+  live.containerList.filter((c) => !MACHINE_SOURCES.has(c.source ?? '')),
+);
 const runningCount = computed(
   () => gridContainers.value.filter((c) => c.state === 'running').length,
 );
