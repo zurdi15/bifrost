@@ -36,8 +36,9 @@ const filtered = computed(() =>
       matchesQuery(c) &&
       // Machine cards (node UIs and endpoints — an endpoint is a node too)
       // live in the dashboard's own rail, never inside the service grids.
-      c.source !== 'node' &&
-      c.source !== 'endpoint',
+      // Hidden ones surface here under "N hidden" so they can be unhidden.
+      ((c.source !== 'node' && c.source !== 'endpoint') ||
+        (dash.showHidden && !!c.meta.hide)),
   ),
 );
 

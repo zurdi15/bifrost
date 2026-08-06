@@ -11,7 +11,7 @@ export const useLiveStore = defineStore('live', () => {
   const retryAt = ref<number | null>(null);
   const nodes = reactive(new Map<string, NodeInfo>());
   const containers = reactive(new Map<string, ContainerInfo[]>());
-  const k8sServices = ref<ContainerInfo[]>([]);
+  const serviceCards = ref<ContainerInfo[]>([]);
   const fs = reactive(new Map<string, FsMount[]>());
   const disks = reactive(new Map<string, DiskInfo[]>());
   const lastSeq = ref(0);
@@ -34,7 +34,7 @@ export const useLiveStore = defineStore('live', () => {
   const downNodes = computed(() =>
     nodeList.value.filter((n) => n.status === 'offline' || n.status === 'degraded'),
   );
-  const allServices = computed(() => [...containers.values()].flat().concat(k8sServices.value));
+  const allServices = computed(() => [...containers.values()].flat().concat(serviceCards.value));
   const containerList = computed(() =>
     allServices.value
       .filter((c) => !c.meta.hide)
@@ -61,7 +61,7 @@ export const useLiveStore = defineStore('live', () => {
     for (const [uuid, list] of Object.entries(snap.containers ?? {})) {
       containers.set(uuid, list);
     }
-    k8sServices.value = snap.k8s_services ?? [];
+    serviceCards.value = snap.service_cards ?? [];
     disks.clear();
     for (const [uuid, list] of Object.entries(snap.disks ?? {})) {
       disks.set(uuid, list);
@@ -142,7 +142,7 @@ export const useLiveStore = defineStore('live', () => {
     retryAt,
     nodes,
     containers,
-    k8sServices,
+    serviceCards,
     fs,
     disks,
     nodeList,

@@ -49,14 +49,19 @@ def node_ui_url(node: Node) -> str | None:
 
 
 def endpoint_services_list(session: Session) -> list[dict]:
-    """Routable endpoints shaped like dashboard service cards: the check
-    target is the subtitle, the gateway hostname is the click-through."""
+    """Machine cards (node UIs and routable endpoints) shaped like dashboard
+    services: the check target or ui_port is the subtitle, the gateway
+    hostname is the click-through, and UI overrides apply like anywhere."""
     from urllib.parse import urlparse
 
     from app.api.gateway import _endpoint_upstream
     from app.config import settings
-    from app.models import EndpointCheck
+    from app.ingest.handlers import merge_override
+    from app.models import EndpointCheck, ServiceOverride
 
+    overrides = {
+        (o.node_id, o.container_name): o for o in session.scalars(select(ServiceOverride))
+    }
     out = []
     for node in session.scalars(select(Node).order_by(Node.name)):
         if node.kind == "endpoint":
@@ -85,10 +90,11 @@ def endpoint_services_list(session: Session) -> list[dict]:
                 "state": "running" if node.status == "online" else "exited",
                 "health": "",
                 "ports": [],
-                "meta": (
+                "meta": merge_override(
                     ({"url": f"https://{host}"} if host else {})
                     | ({"group": "nodes"} if source == "node" else {})
-                    | ({"icon": f"/api/v1/icons/portal/{node.uuid}"} if source == "node" else {})
+                    | ({"icon": f"/api/v1/icons/portal/{node.uuid}"} if source == "node" else {}),
+                    overrides.get((node.id, node.name)),
                 ),
                 "started_at": None,
                 "cpu_pct": None,
@@ -146,7 +152,7 @@ def snapshot(request: Request, session: Session = Depends(get_session)) -> dict:
         "nodes": [node_to_dict(n, registry, _checks_for(session, n)) for n in nodes],
         "containers": containers_by_node(session),
         "disks": disks_by_node(session),
-        "k8s_services": k8s_services_list(session) + endpoint_services_list(session),
+        "service_cards": k8s_services_list(session) + endpoint_services_list(session),
     }
 
 

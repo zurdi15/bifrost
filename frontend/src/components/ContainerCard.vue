@@ -216,10 +216,11 @@ async function save(): Promise<void> {
         <span class="dot-wrap bf-tip-bl" :data-bf-tip="stateLabel">
           <BfStatusDot :status="status" :desync-id="container.id" :size="9" />
         </span>
-        <!-- k8s services take their meta from labels/annotations, not UI edits.
-             Customization is an edit-mode affordance, not everyday chrome. -->
+        <!-- k8s services take their meta from labels/annotations, not UI
+             edits; docker and machine cards customize here. Customization is
+             an edit-mode affordance, not everyday chrome. -->
         <button
-          v-if="ui.editing && container.source === 'docker'"
+          v-if="ui.editing && (container.source === 'docker' || isMachine)"
           class="edit"
           type="button"
           :aria-label="t('service.edit')"

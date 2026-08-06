@@ -265,7 +265,7 @@ def test_sync_cluster_once_records_cronjob_run(client):
     # One card per app: deployments always (outside system namespaces),
     # statefulsets/daemonsets only when annotated. URLs derive from the
     # matching ingress; the bifrost.url annotation wins over it.
-    services = client.get("/api/v1/snapshot").json()["k8s_services"]
+    services = client.get("/api/v1/snapshot").json()["service_cards"]
     by_name = {s["name"]: s for s in services}
     assert sorted(by_name) == ["grafana", "postgres", "romm"]
     assert by_name["romm"]["meta"] == {"group": "media", "url": "https://romm.example"}

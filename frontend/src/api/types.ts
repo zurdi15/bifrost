@@ -81,7 +81,8 @@ export interface Snapshot {
   nodes: NodeInfo[];
   containers: Record<string, ContainerInfo[]>;
   disks: Record<string, DiskInfo[]>;
-  k8s_services?: ContainerInfo[];
+  /** k8s workloads + machine cards (node UIs, endpoints), service-shaped. */
+  service_cards?: ContainerInfo[];
 }
 
 export interface WsEvent {
