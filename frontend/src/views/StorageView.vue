@@ -112,7 +112,7 @@ function smartLabel(disk: DiskInfo): string {
           </dl>
         </details>
 
-        <NodeFilesystems :uuid="node.uuid" class="fs" />
+        <NodeFilesystems :uuid="node.uuid" class="fs" :heading="false" />
       </BfCard>
       </template>
     </SortableList>

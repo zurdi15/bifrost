@@ -10,7 +10,9 @@ import BfCapacityBar from '@/lib/data/BfCapacityBar.vue';
 import { useLiveStore } from '@/stores/live';
 import { formatBytes } from '@/utils/format';
 
-const props = defineProps<{ uuid: string }>();
+const props = withDefaults(defineProps<{ uuid: string; heading?: boolean }>(), {
+  heading: true,
+});
 
 const { t } = useI18n();
 const live = useLiveStore();
@@ -33,7 +35,7 @@ watch(liveMounts, (next) => {
 
 <template>
   <section v-if="mounts.length > 0" class="filesystems">
-    <h2 class="title">{{ t('detail.filesystems') }}</h2>
+    <h2 v-if="props.heading" class="title">{{ t('detail.filesystems') }}</h2>
     <BfCard class="list" :padded="false">
       <div v-for="(mount, i) in mounts" :key="mount.mountpoint" class="row">
         <div class="line">

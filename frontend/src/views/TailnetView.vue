@@ -178,6 +178,17 @@ function measure(): void {
     bodyTop.value = Math.round(bodyEl.value.getBoundingClientRect().top + window.scrollY);
   }
 }
+// The console's height differs per tab (the tailnet bar carries more and
+// wraps on phones) — any change re-measures so the map keeps filling the
+// viewport exactly.
+const consoleEl = ref<HTMLElement | null>(null);
+let consoleObserver: ResizeObserver | null = null;
+watch(consoleEl, (el) => {
+  if (!el) return;
+  consoleObserver ??= new ResizeObserver(measure);
+  consoleObserver.observe(el);
+});
+onBeforeUnmount(() => consoleObserver?.disconnect());
 const fontsReady = ref(false);
 onMounted(() => {
   window.addEventListener('resize', measure);
@@ -240,7 +251,7 @@ watch([loaded, () => state.value?.configured], () => void nextTick(measure), {
 
     <template v-if="loaded && state">
       <!-- Instrument console: net identity, counters, scan filter, re-sync. -->
-      <div class="console">
+      <div ref="consoleEl" class="console">
         <BfChip v-if="!fleetMode && state.tailnet" tone="brand" mono>
           {{ state.tailnet }}
         </BfChip>
