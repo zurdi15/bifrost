@@ -16,8 +16,12 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     monkeypatch.setattr(settings, "enroll_token", ENROLL_TOKEN)
     monkeypatch.setattr(settings, "auto_approve", True)
-    # Fast writer cadence so tests can wait milliseconds, not seconds.
+    # Fast writer cadence so tests can wait milliseconds, not seconds. The
+    # row threshold of 1 is what actually makes flushes deterministic: every
+    # sample flushes on the same wakeup that received it, so starved CI
+    # runners can't stall the timer past a test's polling deadline.
     monkeypatch.setattr("app.metrics.store.FLUSH_INTERVAL_S", 0.05)
+    monkeypatch.setattr("app.metrics.store.FLUSH_MAX_ROWS", 1)
 
     from app.main import create_app
 
