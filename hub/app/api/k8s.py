@@ -146,12 +146,21 @@ def k8s_services_list(session: Session) -> list[dict]:
     plumbing unless they carry explicit bifrost.* meta. The URL falls out of
     the workload's ingress (backend service or ingress named like it), with
     the bifrost.url annotation as override."""
+    from app.ingest.handlers import merge_override
+    from app.models import ServiceOverride
+
     rows = session.execute(
         select(K8sWorkload, K8sCluster)
         .join(K8sCluster, K8sWorkload.cluster_id == K8sCluster.id)
         .order_by(K8sCluster.name, K8sWorkload.namespace, K8sWorkload.name)
     ).all()
     ingresses = _ingress_urls(session)
+    overrides = {
+        (o.cluster_id, o.container_name): o
+        for o in session.scalars(
+            select(ServiceOverride).where(ServiceOverride.cluster_id.is_not(None))
+        )
+    }
     services = []
     for workload, cluster in rows:
         meta = json.loads(workload.meta_json or "{}")
@@ -164,6 +173,12 @@ def k8s_services_list(session: Session) -> list[dict]:
                 if workload.name in names:
                     meta["url"] = url
                     break
+        meta = merge_override(
+            meta,
+            overrides.get(
+                (cluster.id, f"{workload.kind}:{workload.namespace}:{workload.name}")
+            ),
+        )
         desired = workload.replicas_desired or 0
         ready = workload.replicas_ready or 0
         if desired == 0:

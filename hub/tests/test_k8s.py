@@ -279,6 +279,22 @@ def test_sync_cluster_once_records_cronjob_run(client):
     assert by_name["romm"]["mem_bytes"] == 200 * 1024 * 1024
     assert by_name["grafana"]["cpu_millis"] is None  # no pods reporting
 
+    # UI overrides layer on k8s cards, keyed cluster + kind:namespace:name.
+    card = by_name["romm"]
+    key = card["id"].split(":", 2)[2]
+    updated = client.put(
+        f"/api/v1/containers/{card['node_uuid']}/{key}/meta",
+        json={"name": "ROMM", "icon": "🕹️", "url": "https://romm.example"},
+    ).json()
+    assert updated["meta"]["name"] == "ROMM"
+    assert updated["meta"]["icon"] == "🕹️"
+    refreshed = client.get("/api/v1/snapshot").json()["service_cards"]
+    romm = next(s for s in refreshed if s["name"] == "romm")
+    assert romm["meta"]["name"] == "ROMM"
+    assert romm["meta"]["icon"] == "🕹️"
+    # The url merely repeats the annotation → collapsed, still inherited.
+    assert romm["meta"]["url"] == "https://romm.example"
+
     # First sync changed inventory → one k8s.synced, then the cronjob run.
     event = events.get_nowait()
     assert event.topic == "k8s.synced"

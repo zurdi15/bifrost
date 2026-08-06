@@ -69,15 +69,22 @@ class Container(Base):
 
 
 class ServiceOverride(Base):
-    """User-set display metadata for a container, keyed by name (not id) so it
-    survives container recreation. Fields override bifrost.* label meta; NULL
-    means inherit."""
+    """User-set display metadata for a service card, keyed by name (not id) so
+    it survives recreation. Docker cards key on (node_id, container name);
+    k8s cards on (cluster_id, "kind:namespace:name"). Fields override
+    bifrost.* label/annotation meta; NULL means inherit."""
 
     __tablename__ = "service_overrides"
-    __table_args__ = (UniqueConstraint("node_id", "container_name"),)
+    __table_args__ = (
+        UniqueConstraint("node_id", "container_name"),
+        UniqueConstraint("cluster_id", "container_name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    cluster_id: Mapped[int | None] = mapped_column(
+        ForeignKey("k8s_clusters.id", ondelete="CASCADE")
+    )
     container_name: Mapped[str]
     name: Mapped[str | None]
     icon: Mapped[str | None]

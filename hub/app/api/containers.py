@@ -59,6 +59,74 @@ class ServiceMetaPut(BaseModel):
     hide: bool | None = None
 
 
+def _body_values(body: ServiceMetaPut, label_meta: dict) -> dict:
+    return collapse_override(
+        {
+            "name": (body.name or "").strip() or None,
+            "icon": (body.icon or "").strip() or None,
+            "url": (body.url or "").strip() or None,
+            "group_name": (body.group or "").strip() or None,
+            "hide": body.hide,
+        },
+        label_meta,
+    )
+
+
+def _put_k8s_meta(
+    pseudo_uuid: str,
+    card_key: str,
+    body: ServiceMetaPut,
+    request: Request,
+    session: Session,
+) -> dict:
+    """Override for a k8s card: node_uuid is the cluster pseudo-id ("k8s:N")
+    and the card key is "kind:namespace:name"."""
+    from app.api.k8s import k8s_services_list
+    from app.models import K8sCluster, K8sWorkload
+
+    try:
+        cluster_id = int(pseudo_uuid.split(":", 1)[1])
+    except ValueError:
+        raise HTTPException(404) from None
+    cluster = session.get(K8sCluster, cluster_id)
+    parts = card_key.split(":", 2)
+    if cluster is None or len(parts) != 3:
+        raise HTTPException(404)
+    kind, namespace, name = parts
+    workload = session.scalar(
+        select(K8sWorkload).where(
+            K8sWorkload.cluster_id == cluster.id,
+            K8sWorkload.kind == kind,
+            K8sWorkload.namespace == namespace,
+            K8sWorkload.name == name,
+        )
+    )
+    override = session.scalar(
+        select(ServiceOverride).where(
+            ServiceOverride.cluster_id == cluster.id,
+            ServiceOverride.container_name == card_key,
+        )
+    )
+    label_meta = json.loads(workload.meta_json or "{}") if workload else {}
+    values = _body_values(body, label_meta)
+    if all(v is None for v in values.values()):
+        if override is not None:
+            session.delete(override)
+    else:
+        if override is None:
+            override = ServiceOverride(cluster_id=cluster.id, container_name=card_key)
+            session.add(override)
+        for field, value in values.items():
+            setattr(override, field, value)
+    session.flush()
+
+    # The UI re-snapshots on k8s.synced — same signal a real sync sends.
+    request.app.state.bus.publish("k8s.synced", {"cluster": cluster.name})
+    card_id = f"k8s:{cluster.id}:{kind}:{namespace}:{name}"
+    updated = next((c for c in k8s_services_list(session) if c["id"] == card_id), None)
+    return updated or {"name": name, "meta": {}}
+
+
 @router.put("/containers/{node_uuid}/{container_name}/meta")
 def put_container_meta(
     node_uuid: str,
@@ -67,9 +135,12 @@ def put_container_meta(
     request: Request,
     session: Session = Depends(get_session),
 ) -> dict:
-    """Full replace of the UI overrides for one service. Empty/absent fields
-    fall back to the bifrost.* labels, and so do fields that merely repeat
-    them; an all-empty body removes the row."""
+    """Full replace of the UI overrides for one service card — docker,
+    machine (node/endpoint) or k8s. Empty/absent fields fall back to the
+    bifrost.* labels, and so do fields that merely repeat them; an all-empty
+    body removes the row."""
+    if node_uuid.startswith("k8s:"):
+        return _put_k8s_meta(node_uuid, container_name, body, request, session)
     node = session.scalar(select(Node).where(Node.uuid == node_uuid))
     if node is None:
         raise HTTPException(404)
@@ -85,16 +156,7 @@ def put_container_meta(
         )
     )
     label_meta = json.loads(container.bifrost_meta_json or "{}") if container else {}
-    values = collapse_override(
-        {
-            "name": (body.name or "").strip() or None,
-            "icon": (body.icon or "").strip() or None,
-            "url": (body.url or "").strip() or None,
-            "group_name": (body.group or "").strip() or None,
-            "hide": body.hide,
-        },
-        label_meta,
-    )
+    values = _body_values(body, label_meta)
     if all(v is None for v in values.values()):
         if override is not None:
             session.delete(override)

@@ -158,7 +158,13 @@ function openEdit(eventArg: Event): void {
 async function save(): Promise<void> {
   busy.value = true;
   try {
-    await api.putServiceMeta(props.container.node_uuid, props.container.name, { ...form });
+    // k8s overrides key on the card id's kind:namespace:name tail — the bare
+    // workload name is ambiguous across namespaces.
+    const key =
+      props.container.source === 'k8s'
+        ? props.container.id.split(':').slice(2).join(':')
+        : props.container.name;
+    await api.putServiceMeta(props.container.node_uuid, key, { ...form });
     await live.snapshot();
     editing.value = false;
   } finally {
@@ -216,11 +222,11 @@ async function save(): Promise<void> {
         <span class="dot-wrap bf-tip-bl" :data-bf-tip="stateLabel">
           <BfStatusDot :status="status" :desync-id="container.id" :size="9" />
         </span>
-        <!-- k8s services take their meta from labels/annotations, not UI
-             edits; docker and machine cards customize here. Customization is
-             an edit-mode affordance, not everyday chrome. -->
+        <!-- Every card customizes here — docker, machine and k8s (whose
+             overrides layer on top of its annotations). Customization is an
+             edit-mode affordance, not everyday chrome. -->
         <button
-          v-if="ui.editing && (container.source === 'docker' || isMachine)"
+          v-if="ui.editing"
           class="edit"
           type="button"
           :aria-label="t('service.edit')"
